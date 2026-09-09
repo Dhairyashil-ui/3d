@@ -1,0 +1,52 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Node & Build
+node_modules
+dist
+dist-ssr
+*.local
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python & Virtual Environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Scratch & Temporary
+scratch/
+blender_err.txt
+*.blend1
+test_*.png
+
+# Media & Large Screen Assets
+*.mp4
+unwanted 3d/
+naksha-portal/
+surveyers_map2/
+
+# Nested git clone
+3d-Stack/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

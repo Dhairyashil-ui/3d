@@ -1,0 +1,12 @@
+Sample Shapefile package for NAKSHA UTM Zone 44N Projection.
+Contains:
+- bhopal_urban_aoi.shp
+- bhopal_urban_aoi.shx
+- bhopal_urban_aoi.dbf
+- bhopal_urban_aoi.prj (PROJCS["WGS 84 / UTM zone 44N",GEOGCS["WGS 84",DATUM["WGS_1984"],SPHEROID["WGS 84",6378137,298.257223563]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",81],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1]])
+- bhopal_urban_aoi.cpg (UTF-8)
+
+Coordinate System: EPSG:32644 (UTM Zone 44N)
+Datum: WGS 1984
+Target ULB: Bhopal-250946
+Agency: Madhya Pradesh State Electronics Development Corporation Ltd (MPSEDC)
