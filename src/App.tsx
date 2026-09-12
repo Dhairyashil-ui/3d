@@ -62,6 +62,8 @@ import { BuildingFloorUnitRecordsPage } from './pages/surveyor/BuildingFloorUnit
 import { EvidenceVaultPage } from './pages/surveyor/EvidenceVaultPage';
 import { SurveyorComparisonPage } from './pages/surveyor/SurveyorComparisonPage';
 import { SurveyorVerificationQueuePage } from './pages/surveyor/SurveyorVerificationQueuePage';
+import { DataExtractionPage } from './pages/surveyor/DataExtractionPage';
+import { Cinematic3DPipeline } from './components/surveyor/extraction/cinematic3d/Cinematic3DPipeline';
 
 export function App() {
   return (
@@ -175,7 +177,10 @@ export function App() {
           <Route path="survey-units" element={<SurveyorSurveyUnitsPage />} />
 
           {/* Survey Activities */}
-          <Route path="survey-activities" element={<Navigate to="/surveyor/map-image-verification" replace />} />
+          <Route path="survey-activities" element={<Navigate to="/surveyor/data-extraction" replace />} />
+          <Route path="data-extraction" element={<DataExtractionPage />} />
+          <Route path="reconstruction-experience" element={<Cinematic3DPipeline onExit={() => window.location.href = '/surveyor/data-extraction'} />} />
+          <Route path="cinematic-pipeline" element={<Cinematic3DPipeline onExit={() => window.location.href = '/surveyor/data-extraction'} />} />
           <Route path="map-image-verification" element={<MapImageVerificationPage />} />
           <Route path="2d-map" element={<MapImageVerificationPage />} />
           <Route path="upload-gt-points" element={<UploadGtPointsPage />} />

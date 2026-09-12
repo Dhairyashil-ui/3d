@@ -1,4 +1,4 @@
-// NAKSHA V2.0 - Authoritative PCCRC Cadastre & GNSS / GIS Dataset
+// NAKSHA V2.0 - Authoritative PPCRC Cadastre & GNSS / GIS Dataset
 // 14-Digit ULPIN Structure:
 // - State (2 digits): 27 (Maharashtra)
 // - District (2 digits): 25 (Pune)
@@ -104,13 +104,14 @@ const BUILDING_NUM = "0089"; // Building 89
 const ULPIN_14 = `${STATE_CODE}${DISTRICT_CODE}${TALUKA_CODE}${VILLAGE_CODE}${BUILDING_NUM}`; // 27250401420089
 const ULPIN_FORMATTED = `${STATE_CODE}-${DISTRICT_CODE}-${TALUKA_CODE}-${VILLAGE_CODE}-${BUILDING_NUM}`;
 
-export const PCCRC_FLOOR_SEGMENTATIONS: FloorSegmentation[] = [
+export const PPCRC_FLOOR_SEGMENTATIONS: FloorSegmentation[] = [
   { floorNumber: 1, startDownY: 0.00, endUpY: 4.20, heightM: 4.20, startDownMsl: 562.40, endUpMsl: 566.60, downwardPointCloudPoints: 2400, upwardPointCloudPoints: 2400 },
   { floorNumber: 2, startDownY: 4.20, endUpY: 8.40, heightM: 4.20, startDownMsl: 566.60, endUpMsl: 570.80, downwardPointCloudPoints: 2400, upwardPointCloudPoints: 2400 },
   { floorNumber: 3, startDownY: 8.40, endUpY: 12.60, heightM: 4.20, startDownMsl: 570.80, endUpMsl: 575.00, downwardPointCloudPoints: 2400, upwardPointCloudPoints: 2400 },
   { floorNumber: 4, startDownY: 12.60, endUpY: 16.80, heightM: 4.20, startDownMsl: 575.00, endUpMsl: 579.20, downwardPointCloudPoints: 2400, upwardPointCloudPoints: 2400 },
   { floorNumber: 5, startDownY: 16.80, endUpY: 21.00, heightM: 4.20, startDownMsl: 579.20, endUpMsl: 583.40, downwardPointCloudPoints: 2400, upwardPointCloudPoints: 2400 }
 ];
+export const PCCRC_FLOOR_SEGMENTATIONS = PPCRC_FLOOR_SEGMENTATIONS;
 
 const FLOOR_LABELS: Record<number, string> = {
   1: "Level 1 (Ground Floor Atrium Tier)",
@@ -132,7 +133,8 @@ const ROOM_NAMES: Record<number, string> = {
   19: "High-Performance Computing Research Lab"
 };
 
-export const PCCRC_ROOMS_CADASTRE: RoomCadastreRecord[] = [];
+export const PPCRC_ROOMS_CADASTRE: RoomCadastreRecord[] = [];
+export const PCCRC_ROOMS_CADASTRE = PPCRC_ROOMS_CADASTRE;
 
 // Populate 45 rooms across Floors 1 to 5
 for (let f = 1; f <= 5; f++) {
@@ -229,7 +231,7 @@ for (let f = 1; f <= 5; f++) {
       pointCloudCount: 1240
     };
 
-    PCCRC_ROOMS_CADASTRE.push({
+    PPCRC_ROOMS_CADASTRE.push({
       roomCode: code,
       floorNumber: f,
       floorLabel,
@@ -272,8 +274,8 @@ export const getRoomCadastre = (roomCode: string): RoomCadastreRecord => {
   const roomDigitsMatch = clean.match(/([1-5][0-9]{2})/);
   if (roomDigitsMatch) {
     const rNum = roomDigitsMatch[1];
-    const found = PCCRC_ROOMS_CADASTRE.find(r => r.roomNum3 === rNum);
+    const found = PPCRC_ROOMS_CADASTRE.find(r => r.roomNum3 === rNum);
     if (found) return found;
   }
-  return PCCRC_ROOMS_CADASTRE[8]; // Default to A-119
+  return PPCRC_ROOMS_CADASTRE[8]; // Default to A-119
 };

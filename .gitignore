@@ -30,12 +30,21 @@ scratch/
 blender_err.txt
 *.blend1
 test_*.png
+scratch_test*.fbx
+new
 
 # Media & Large Screen Assets
 *.mp4
 unwanted 3d/
 naksha-portal/
 surveyers_map2/
+
+# Large 3D Point Cloud Outputs & Local Caches
+*.ply
+reconstruction/
+reconstruction_academic/
+hinjawadi_output/
+Hinjawadi_Walkthrough_Laptop_Package/
 
 # Nested git clone
 3d-Stack/

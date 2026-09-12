@@ -1,0 +1,154 @@
+{
+  "project": "Hinjawadi Phase 1 & PCCRC Digital Twin Walkthrough",
+  "ue_engine_target": "5.4",
+  "coordinate_frame": "Blender ENU (metres) -> UE5 (cm), UE_X = ENU_X * 100, UE_Y = -ENU_Y * 100, UE_Z = ENU_Z * 100",
+  "pccrc_origin_enu_m": [
+    -82.33000183105469,
+    -769.219970703125,
+    0.0
+  ],
+  "pccrc_ue_location_cm": [
+    -8233.000183105469,
+    76921.9970703125,
+    0.0
+  ],
+  "tile_-001_-002_origin_enu_m": [
+    -512.0,
+    -1024.0,
+    0.0
+  ],
+  "tile_-001_-002_ue_location_cm": [
+    -51200.0,
+    102400.0,
+    0.0
+  ],
+  "walkthrough_path_enu_m": [
+    {
+      "label": "Phase 1 Road Approach",
+      "enu": [
+        -140.0,
+        -740.0,
+        0.0
+      ],
+      "heading_deg": 125.0
+    },
+    {
+      "label": "I2IT / PCCRC Campus Gate",
+      "enu": [
+        -105.0,
+        -758.0,
+        0.0
+      ],
+      "heading_deg": 130.0
+    },
+    {
+      "label": "Landscaped Forecourt Plaza",
+      "enu": [
+        -95.0,
+        -762.0,
+        0.0
+      ],
+      "heading_deg": 140.0
+    },
+    {
+      "label": "Base of Monumental Steps",
+      "enu": [
+        -82.33,
+        -771.5,
+        0.0
+      ],
+      "heading_deg": 4.44
+    },
+    {
+      "label": "Monumental Portico Platform",
+      "enu": [
+        -82.33,
+        -769.5,
+        0.3
+      ],
+      "heading_deg": 4.44
+    },
+    {
+      "label": "Entrance Vestibule Doors",
+      "enu": [
+        -82.33,
+        -763.5,
+        0.3
+      ],
+      "heading_deg": 4.44
+    },
+    {
+      "label": "Grand Central Atrium Core",
+      "enu": [
+        -82.33,
+        -755.22,
+        0.0
+      ],
+      "heading_deg": 4.44
+    },
+    {
+      "label": "Atrium Floor Marble Inlays",
+      "enu": [
+        -82.33,
+        -753.5,
+        0.0
+      ],
+      "heading_deg": 4.44
+    },
+    {
+      "label": "Panoramic Glass Lift & Corridors",
+      "enu": [
+        -82.33,
+        -749.0,
+        0.0
+      ],
+      "heading_deg": 4.44
+    },
+    {
+      "label": "Departmental Rooms (A-111 to A-119)",
+      "enu": [
+        -74.0,
+        -749.0,
+        0.0
+      ],
+      "heading_deg": 90.0
+    }
+  ],
+  "assets": [
+    {
+      "file": "SM_PCCRC_Exterior_Architecture.fbx",
+      "category": "Building",
+      "collision": "ComplexAsSimple"
+    },
+    {
+      "file": "SM_PCCRC_Interior_Atrium.fbx",
+      "category": "Interior",
+      "collision": "ComplexAsSimple"
+    },
+    {
+      "file": "SM_PCCRC_Interior_Galleries.fbx",
+      "category": "Interior",
+      "collision": "ComplexAsSimple"
+    },
+    {
+      "file": "SM_PCCRC_Interior_Rooms_Doors.fbx",
+      "category": "Interior",
+      "collision": "ComplexAsSimple"
+    },
+    {
+      "file": "SM_PCCRC_Interior_Lift_and_Skylight.fbx",
+      "category": "Interior_Glazing",
+      "collision": "ComplexAsSimple"
+    },
+    {
+      "file": "SM_Hinjawadi_Phase1_Roads_Walkway.fbx",
+      "category": "Roads",
+      "collision": "ComplexAsSimple"
+    },
+    {
+      "file": "Tile_-001_-002.fbx",
+      "category": "Tile",
+      "collision": "ComplexAsSimple"
+    }
+  ]
+}

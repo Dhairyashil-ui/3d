@@ -18,21 +18,24 @@ import {
   Building2, 
   X,
   ShieldCheck,
-  Compass
+  Compass,
+  Camera,
+  RotateCcw,
+  ArrowRight
 } from 'lucide-react';
 
 export const ThreeDViewerPage: React.FC = () => {
-  // Input states: 14-Digit ULPIN and Building-Floor-Area-Room Unit ID
+  // Input states: 14-Digit ULPIN and Building-Floor-Area-Room Unit ID (Hinjawadi, Pune)
   const [ulpinInput, setUlpinInput] = useState('27250401420089');
   const [buildingIdInput, setBuildingIdInput] = useState('0089-01-01-119');
   
-  // Pipeline progression states
-  // 'initial_map' -> 'zooming_to_prop' -> 'twin_active'
+  // Pipeline progression states:
+  // Starts from the beginning: First comes map, then zooms into property, then opens 3D Digital Twin
   const [appState, setAppState] = useState<'initial_map' | 'zooming_to_prop' | 'twin_active'>('initial_map');
   const [targetRoom, setTargetRoom] = useState('A-119');
   const [currentDisplayMode, setCurrentDisplayMode] = useState<DisplayMode>('realistic');
 
-  // Search box minimization: after search, it shrinks into a small search icon in the corner
+  // Search box minimization: visible on initial map, minimized during 3D twin inspection
   const [searchMinimized, setSearchMinimized] = useState(false);
 
   // Property Details visibility: appears when camera reaches door without changing frame
@@ -47,18 +50,20 @@ export const ThreeDViewerPage: React.FC = () => {
     return 'A-119';
   };
 
-  // Direct URL Inspection (e.g. ?direct=1&room=A-119 or ?search=1)
+  // Direct URL Inspection: supports ?model=1 to force direct 3D model or ?search=1 for auto-fly
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('search') === '1' || params.get('direct') === '1') {
+    if (params.get('model') === '1') {
+      setAppState('twin_active');
+      setSearchMinimized(true);
+    } else if (params.get('search') === '1') {
       const roomParam = params.get('room') || 'A-119';
       setTargetRoom(roomParam);
+      setAppState('zooming_to_prop');
       setSearchMinimized(true);
-      if (params.get('direct') === '1') {
-        setAppState('twin_active');
-      } else {
-        setAppState('zooming_to_prop');
-      }
+    } else {
+      setAppState('initial_map');
+      setSearchMinimized(false);
     }
   }, []);
 
@@ -77,10 +82,10 @@ export const ThreeDViewerPage: React.FC = () => {
     setSearchMinimized(true);
   };
 
-  // 2. Map Zoom & 3s Marking Complete -> Smoothly opens our building with details panel & controls
+  // 2. Map Zoom & 3s Marking Complete -> Smoothly opens 3D Digital Twin (details panel appears upon reaching room)
   const handleMapZoomComplete = useCallback(() => {
     setAppState('twin_active');
-    setShowDetailsPanel(true);
+    setShowDetailsPanel(false);
   }, []);
 
   // 3. Camera Arrived at Room Door -> Show Details Panel WITHOUT changing frame!
@@ -127,28 +132,90 @@ export const ThreeDViewerPage: React.FC = () => {
         pointerEvents: 'auto'
       }}>
         {searchMinimized ? (
-          // Minimized State: Sleek small glowing search icon in the top-right corner
-          <button
-            onClick={() => setSearchMinimized(false)}
-            style={{
-              backgroundColor: 'rgba(15, 23, 42, 0.92)',
-              backdropFilter: 'blur(12px)',
-              border: '1.5px solid #38bdf8',
-              borderRadius: '50%',
-              width: '42px',
-              height: '42px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#38bdf8',
-              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5), 0 0 14px rgba(56, 189, 248, 0.3)',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            title="Search another ULPIN / Building ID"
-          >
-            <Search size={18} />
-          </button>
+          // Minimized State: Sleek glowing buttons in the top-right corner
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                if ((window as any).__twinViewer?.resetToFrontView) {
+                  (window as any).__twinViewer.resetToFrontView();
+                  setShowDetailsPanel(false);
+                }
+              }}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(12px)',
+                border: '1.5px solid #10b981',
+                borderRadius: '20px',
+                padding: '0 12px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: '#10b981',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5), 0 0 14px rgba(16, 185, 129, 0.25)',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 600,
+                transition: 'all 0.2s'
+              }}
+              title="Reset to Reconstructed Front Elevation View (matching front_reconstruction.png)"
+            >
+              <Camera size={15} />
+              <span>Front View</span>
+            </button>
+
+            {/* Map View Button to toggle back to Map Overview */}
+            <button
+              onClick={() => {
+                setAppState('initial_map');
+                setSearchMinimized(false);
+                setShowDetailsPanel(false);
+              }}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(12px)',
+                border: '1.5px solid #38bdf8',
+                borderRadius: '20px',
+                padding: '0 12px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                color: '#38bdf8',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5), 0 0 14px rgba(56, 189, 248, 0.25)',
+                cursor: 'pointer',
+                fontSize: '11px',
+                fontWeight: 600,
+                transition: 'all 0.2s'
+              }}
+              title="Return to Map Overview"
+            >
+              <Compass size={15} />
+              <span>Map View</span>
+            </button>
+
+            <button
+              onClick={() => setSearchMinimized(false)}
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.92)',
+                backdropFilter: 'blur(12px)',
+                border: '1.5px solid #38bdf8',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#38bdf8',
+                boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5), 0 0 14px rgba(56, 189, 248, 0.3)',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              title="Search another ULPIN / Building ID"
+            >
+              <Search size={17} />
+            </button>
+          </div>
         ) : (
           // Expanded State: Small, compact dual input boxes in the top-right corner
           <div style={{
@@ -319,6 +386,58 @@ export const ThreeDViewerPage: React.FC = () => {
           onDisplayModeChange={setCurrentDisplayMode}
           currentDisplayMode={currentDisplayMode}
         />
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4. MAP STAGE PROMPT BANNER (Starting from Map first)                      */}
+      {/* ========================================================================= */}
+      {appState === 'initial_map' && (
+        <div style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 60,
+          backgroundColor: 'rgba(15, 23, 42, 0.94)',
+          backdropFilter: 'blur(16px)',
+          border: '1.5px solid #0284c7',
+          borderRadius: '12px',
+          padding: '12px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '20px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 20px rgba(2, 132, 199, 0.35)'
+        }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 800, color: '#38bdf8' }}>
+              Hinjawadi, Pune — PPCRC Building 3D Cadastre
+            </div>
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+              ULPIN: 27250401420089 • Unit: 0089-01-01-119 (Room A-119)
+            </div>
+          </div>
+
+          <button
+            onClick={handleSearch}
+            style={{
+              backgroundColor: '#0284c7',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '8px 18px',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 0 12px rgba(2, 132, 199, 0.5)'
+            }}
+          >
+            <span>Fly into 3D Model</span>
+            <ArrowRight size={14} />
+          </button>
+        </div>
       )}
 
       <style>{`

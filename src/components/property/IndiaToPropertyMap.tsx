@@ -21,14 +21,14 @@ interface IndiaToPropertyMapProps {
   targetCoords?: { lat: number; lng: number; name: string };
 }
 
-// Coordinates matching Pralhad P. Chhabria Research Center (PCCRC) in user's image
+// Coordinates matching Pralhad P. Chhabria Research Center (PPCRC) in user's image
 const INDIA_CENTER = { lat: 21.7679, lng: 78.8718, zoom: 4.8 };
-const PCCRC_COORDS = { lat: 18.584072, lng: 73.737195, zoom: 19.0 };
+const PPCRC_COORDS = { lat: 18.584072, lng: 73.737195, zoom: 19.0 };
 
 export const IndiaToPropertyMap: React.FC<IndiaToPropertyMapProps> = ({
   isZoomed,
   onZoomComplete,
-  targetCoords = PCCRC_COORDS
+  targetCoords = PPCRC_COORDS
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -309,7 +309,7 @@ export const IndiaToPropertyMap: React.FC<IndiaToPropertyMapProps> = ({
 
             ctx.fillStyle = '#ffffff';
             ctx.font = '11px "Inter", monospace';
-            ctx.fillText('TARGET: PUNE / HINJAWADI (PCCRC)', puneX + 12, puneY + 4);
+            ctx.fillText('TARGET: PUNE / HINJAWADI (PPCRC)', puneX + 12, puneY + 4);
 
             ctx.restore();
           }
@@ -438,7 +438,7 @@ export const IndiaToPropertyMap: React.FC<IndiaToPropertyMapProps> = ({
         ctx.font = 'bold 13px "Inter", monospace';
         ctx.shadowColor = '#000000';
         ctx.shadowBlur = 8;
-        ctx.fillText('PRALHAD P. CHHABRIA RESEARCH CENTER (PCCRC)', minX, minY - 18);
+        ctx.fillText('PRALHAD P. CHHABRIA RESEARCH CENTER (PPCRC)', minX, minY - 18);
 
         ctx.fillStyle = '#a7f3d0';
         ctx.font = '10.5px "Inter", monospace';

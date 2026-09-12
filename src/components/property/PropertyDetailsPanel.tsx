@@ -138,7 +138,7 @@ export const PropertyDetailsPanel: React.FC<PropertyDetailsPanelProps> = ({
                 PROPERTY CADASTRE DETAILS
               </span>
               <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                PCCRC RESEARCH COMPLEX • PUNE
+                PPCRC RESEARCH COMPLEX • PUNE
               </span>
             </div>
           </div>

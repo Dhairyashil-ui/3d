@@ -207,20 +207,22 @@ def create_material(name, base_color, metallic=0.0, roughness=0.5, transmission=
 
     return m
 
-# Exterior Materials
-mat_facade_cream = create_material("Warm cream aged plaster", (0.74, 0.68, 0.56), 0.0, 0.78, bump_scale=35)
-mat_facade_peach = create_material("Muted peach sandstone finish", (0.64, 0.48, 0.35), 0.0, 0.82, bump_scale=40)
-mat_cornice_trim = create_material("Light warm cornice finish", (0.78, 0.72, 0.60), 0.0, 0.70, bump_scale=30)
-mat_relief_square = create_material("Weathered ornament", (0.54, 0.43, 0.32), 0.0, 0.85)
-mat_aluminium = create_material("Dull aluminium window frames", (0.58, 0.60, 0.58), 0.65, 0.35)
-mat_rail_dark = create_material("Aged railing metal", (0.28, 0.27, 0.23), 0.70, 0.45)
-mat_glazing_green = create_material("Grey green glazing", (0.22, 0.32, 0.30), 0.10, 0.12, transmission=0.45)
-mat_dark_recess = create_material("Dark recessed interior", (0.035, 0.040, 0.038), 0.0, 0.95)
+# Exterior Materials (Synchronized with PCCRC building specification)
+mat_facade_cream = create_material("Warm cream aged plaster", (0.686, 0.630, 0.537), 0.0, 0.92, bump_scale=45) # #D8D0C2
+mat_facade_peach = create_material("Muted peach sandstone finish", (0.398, 0.254, 0.169), 0.0, 0.88, bump_scale=40) # #A98A72
+mat_column_terracotta = create_material("Granular terracotta column finish", (0.325, 0.170, 0.096), 0.0, 0.92, bump_scale=65) # #9A7358
+mat_cornice_trim = create_material("Weathered parapet bands", (0.263, 0.214, 0.162), 0.0, 0.86, bump_scale=35) # #8C7F70
+mat_relief_square = create_material("Weathered ornament", (0.325, 0.170, 0.096), 0.0, 0.88)
+mat_aluminium = create_material("Dull aluminium window frames", (0.35, 0.36, 0.36), 0.65, 0.40)
+mat_rail_dark = create_material("Aged railing metal", (0.124, 0.133, 0.145), 0.78, 0.52) # #63666A
+mat_glazing_green = create_material("Dark reflective charcoal glazing", (0.005, 0.008, 0.012), 0.05, 0.045, transmission=0.15) # #11161B
+mat_dark_recess = create_material("Dark recessed interior", (0.02, 0.02, 0.02), 0.0, 0.95)
+mat_stone_ramp = create_material("Irregular grey-blue stone masonry", (0.103, 0.146, 0.185), 0.0, 0.84, bump_scale=50) # #5C6B77
 mat_paving_neutral = create_material("Neutral exterior paving", (0.33, 0.32, 0.29), 0.0, 0.90, bump_scale=50)
 
 # Equipment Materials (from reference_building)
 mat_ac_paint = create_material("Weathered AC paint", (0.68, 0.68, 0.62), 0.1, 0.55, bump_scale=60)
-mat_grille_metal = create_material("Painted security grilles", (0.42, 0.44, 0.42), 0.5, 0.45)
+mat_grille_metal = create_material("Aged silver oxidised grilles", (0.124, 0.133, 0.145), 0.78, 0.52) # #63666A
 mat_curtains = [
     create_material("Curtain cream", (0.68, 0.63, 0.52), 0.0, 0.85),
     create_material("Curtain muted green", (0.32, 0.39, 0.34), 0.0, 0.85),
@@ -316,9 +318,9 @@ def ext_window(name, x, y, z, width, height, cols=2, rows=3, add_curtain=True, a
 def ext_column(name, x, y, bottom, top, radius=0.25):
     old = CURRENT_GROUP
     set_group("02_Exterior_Portico_and_Columns")
-    cylinder(f"{name}_shaft", (x, y, (bottom + top) / 2.0), radius, top - bottom, mat_facade_peach)
-    cylinder(f"{name}_base", (x, y, bottom + 0.08), radius * 1.25, 0.16, mat_facade_peach)
-    cylinder(f"{name}_capital", (x, y, top - 0.10), radius * 1.28, 0.20, mat_facade_peach)
+    cylinder(f"{name}_shaft", (x, y, (bottom + top) / 2.0), radius, top - bottom, mat_column_terracotta)
+    cylinder(f"{name}_base", (x, y, bottom + 0.08), radius * 1.25, 0.16, mat_column_terracotta)
+    cylinder(f"{name}_capital", (x, y, top - 0.10), radius * 1.28, 0.20, mat_column_terracotta)
     set_group(old)
 
 def ext_cornice(name, x, y, z, width, depth):

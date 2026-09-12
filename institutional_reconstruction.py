@@ -80,6 +80,13 @@ def move_to_group(obj):
 # MATERIALS: WORLD-SPACE WEATHERING, VARIABLE ROUGHNESS, MICRORELIEF
 # ---------------------------------------------------------------------
 
+def hex_to_linear(hex_str):
+    hex_str = hex_str.lstrip("#")
+    r = int(hex_str[0:2], 16) / 255.0
+    g = int(hex_str[2:4], 16) / 255.0
+    b = int(hex_str[4:6], 16) / 255.0
+    return (r ** 2.2, g ** 2.2, b ** 2.2)
+
 def simple_mat(name, color, roughness=.65, metallic=0.0):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
@@ -89,8 +96,7 @@ def simple_mat(name, color, roughness=.65, metallic=0.0):
     bs.inputs["Metallic"].default_value = metallic
     return mat
 
-def aged_mat(name, color, roughness=.85, strength=.25,
-             bump_distance=.035):
+def aged_mat(name, color, roughness=.85, strength=.25, bump_distance=.035):
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -160,22 +166,707 @@ def aged_mat(name, color, roughness=.85, strength=.25,
 
     return mat
 
-# Authentic Clean Architectural Color Palette
-cream = aged_mat("Warm beige plaster", (.78, .74, .64), strength=.06, bump_distance=.015)
-pink = aged_mat("Peach sandstone cladding", (.66, .48, .38), strength=.08, bump_distance=.015)
-trim = aged_mat("Warm cream cornice finish", (.82, .78, .70), strength=.04)
-concrete = aged_mat("Light architectural concrete", (.68, .68, .66), strength=.08, bump_distance=.015)
-panel = aged_mat("Inset ochre aggregate panels", (.52, .38, .22), strength=.12, bump_distance=.03)
-white = aged_mat("Warm off-white interior plaster", (.80, .79, .76), strength=.03)
-red = aged_mat("Terracotta red stair stone", (.55, .18, .12), strength=.08)
-stone = aged_mat("Cream stair and paving stone", (.72, .69, .60), strength=.06)
-asphalt = aged_mat("Forecourt paving", (.22, .23, .22), strength=.20, bump_distance=.03)
+def wall_plaster_weathered_mat(name, base_hex="#D8D0C2", roughness=0.94):
+    """
+    Main exterior walls: warm aged ivory / cream cement-plaster exterior (#D8D0C2).
+    Real stucco texture: slightly rough, fine granular surface, microscopic bumps,
+    uneven plaster undulation, very low gloss/matte reflectance.
+    Aged paint containing subtle variations of ivory, beige, dusty grey and faint brown tones.
+    Accumulated airborne dust, vertical rainwater streaks, localized dirt, faded areas,
+    naturally irregular discoloration, and severe foundation plinth weathering.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = roughness
+    if "Specular IOR Level" in bs.inputs:
+        bs.inputs["Specular IOR Level"].default_value = 0.14
+    elif "Specular" in bs.inputs:
+        bs.inputs["Specular"].default_value = 0.14
+    if "Metallic" in bs.inputs:
+        bs.inputs["Metallic"].default_value = 0.0
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+    norm = geom.outputs["Normal"]
+
+    # 1. Authentic color variation: ivory (#D8D0C2), beige, dusty grey, and faint brown tones
+    col_brown     = hex_to_linear("#B8A58D") # Weathered dusty beige-brown
+    col_grey      = hex_to_linear("#C9C1B2") # Cement-plaster dusty grey
+    col_beige     = hex_to_linear("#D0C7B6") # Warm light beige
+    col_base      = hex_to_linear(base_hex)   # #D8D0C2 warm ivory / light cream
+    col_highlight = hex_to_linear("#DDD4C4") # Sun-aged cream (not bleached white)
+
+    coarse = n.new("ShaderNodeTexNoise")
+    coarse.inputs["Scale"].default_value = 0.70
+    coarse.inputs["Detail"].default_value = 4.0
+    coarse.inputs["Roughness"].default_value = 0.68
+    l.new(pos, coarse.inputs["Vector"])
+
+    ramp_color = n.new("ShaderNodeValToRGB")
+    ramp_color.color_ramp.elements[0].position = 0.06
+    ramp_color.color_ramp.elements[0].color = (*col_brown, 1.0)
+    ramp_color.color_ramp.elements[1].position = 0.28
+    ramp_color.color_ramp.elements[1].color = (*col_grey, 1.0)
+    e3 = ramp_color.color_ramp.elements.new(0.55)
+    e3.color = (*col_beige, 1.0)
+    e4 = ramp_color.color_ramp.elements.new(0.80)
+    e4.color = (*col_base, 1.0)
+    e5 = ramp_color.color_ramp.elements.new(0.96)
+    e5.color = (*col_highlight, 1.0)
+    l.new(coarse.outputs["Fac"], ramp_color.inputs["Fac"])
+
+    # 1b. Large-scale sun-fading vs unexposed patches
+    macro_noise = n.new("ShaderNodeTexNoise")
+    macro_noise.inputs["Scale"].default_value = 0.18
+    macro_noise.inputs["Detail"].default_value = 2.0
+    l.new(pos, macro_noise.inputs["Vector"])
+
+    macro_ramp = n.new("ShaderNodeValToRGB")
+    macro_ramp.color_ramp.elements[0].position = 0.25
+    macro_ramp.color_ramp.elements[0].color = (0.90, 0.88, 0.85, 1.0)
+    macro_ramp.color_ramp.elements[1].position = 0.75
+    macro_ramp.color_ramp.elements[1].color = (1.02, 1.01, 0.98, 1.0)
+    l.new(macro_noise.outputs["Fac"], macro_ramp.inputs["Fac"])
+
+    mix_patchy = n.new("ShaderNodeMixRGB")
+    mix_patchy.blend_type = "MULTIPLY"
+    mix_patchy.inputs[0].default_value = 0.55
+    l.new(ramp_color.outputs["Color"], mix_patchy.inputs[1])
+    l.new(macro_ramp.outputs["Color"], mix_patchy.inputs[2])
+
+    # 2. Accumulated airborne dust on horizontal ledges and upward faces
+    sep_norm = n.new("ShaderNodeSeparateXYZ")
+    l.new(norm, sep_norm.inputs["Vector"])
+
+    dust_range = n.new("ShaderNodeMapRange")
+    dust_range.inputs["From Min"].default_value = 0.20
+    dust_range.inputs["From Max"].default_value = 0.90
+    dust_range.inputs["To Min"].default_value = 0.0
+    dust_range.inputs["To Max"].default_value = 0.50
+    l.new(sep_norm.outputs["Z"], dust_range.inputs["Value"])
+
+    dust_col = hex_to_linear("#B4A996")
+    mix_dust = n.new("ShaderNodeMixRGB")
+    mix_dust.blend_type = "MIX"
+    l.new(dust_range.outputs["Result"], mix_dust.inputs[0])
+    l.new(mix_patchy.outputs["Color"], mix_dust.inputs[1])
+    mix_dust.inputs[2].default_value = (*dust_col, 1.0)
+
+    # 3. Vertical rainwater streaking underneath edges and projections
+    stretch = n.new("ShaderNodeVectorMath")
+    stretch.operation = "MULTIPLY"
+    stretch.inputs[1].default_value = (1.6, 1.6, 0.08)
+    l.new(pos, stretch.inputs[0])
+
+    rain_noise = n.new("ShaderNodeTexNoise")
+    rain_noise.inputs["Scale"].default_value = 1.15
+    rain_noise.inputs["Detail"].default_value = 4.0
+    l.new(stretch.outputs["Vector"], rain_noise.inputs["Vector"])
+
+    rain_ramp = n.new("ShaderNodeValToRGB")
+    rain_ramp.color_ramp.elements[0].position = 0.24
+    rain_ramp.color_ramp.elements[0].color = (0.24, 0.21, 0.17, 1.0)
+    rain_ramp.color_ramp.elements[1].position = 0.60
+    rain_ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    l.new(rain_noise.outputs["Fac"], rain_ramp.inputs["Fac"])
+
+    mix_streaks = n.new("ShaderNodeMixRGB")
+    mix_streaks.blend_type = "MULTIPLY"
+    mix_streaks.inputs[0].default_value = 0.38
+    l.new(mix_dust.outputs["Color"], mix_streaks.inputs[1])
+    l.new(rain_ramp.outputs["Color"], mix_streaks.inputs[2])
+
+    # 4. Lower plinth/foundation significantly stronger weathering (Z < 1.85m)
+    sep_pos = n.new("ShaderNodeSeparateXYZ")
+    l.new(pos, sep_pos.inputs["Vector"])
+
+    plinth_range = n.new("ShaderNodeMapRange")
+    plinth_range.inputs["From Min"].default_value = -0.90
+    plinth_range.inputs["From Max"].default_value = 1.85
+    plinth_range.inputs["To Min"].default_value = 1.0
+    plinth_range.inputs["To Max"].default_value = 0.0
+    l.new(sep_pos.outputs["Z"], plinth_range.inputs["Value"])
+
+    # Mottled damp moisture staining and splash dirt
+    plinth_noise = n.new("ShaderNodeTexNoise")
+    plinth_noise.inputs["Scale"].default_value = 3.5
+    plinth_noise.inputs["Detail"].default_value = 3.5
+    l.new(pos, plinth_noise.inputs["Vector"])
+
+    plinth_mult = n.new("ShaderNodeMath")
+    plinth_mult.operation = "MULTIPLY"
+    l.new(plinth_range.outputs["Result"], plinth_mult.inputs[0])
+    l.new(plinth_noise.outputs["Fac"], plinth_mult.inputs[1])
+
+    damp_black_dirt = (0.05, 0.05, 0.045, 1.0)
+    mix_plinth = n.new("ShaderNodeMixRGB")
+    mix_plinth.blend_type = "MULTIPLY"
+    l.new(plinth_mult.outputs["Value"], mix_plinth.inputs[0])
+    l.new(mix_streaks.outputs["Color"], mix_plinth.inputs[1])
+    mix_plinth.inputs[2].default_value = damp_black_dirt
+
+    # 5. Ambient Occlusion crevice grime pooling
+    ao = n.new("ShaderNodeAmbientOcclusion")
+    ao.inputs["Distance"].default_value = 1.35
+    ao_ramp = n.new("ShaderNodeValToRGB")
+    ao_ramp.color_ramp.elements[0].position = 0.05
+    ao_ramp.color_ramp.elements[0].color = (0.20, 0.18, 0.15, 1.0)
+    ao_ramp.color_ramp.elements[1].position = 0.90
+    ao_ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    l.new(ao.outputs["AO"], ao_ramp.inputs["Fac"])
+
+    mix_ao = n.new("ShaderNodeMixRGB")
+    mix_ao.blend_type = "MULTIPLY"
+    mix_ao.inputs[0].default_value = 0.68
+    l.new(mix_plinth.outputs["Color"], mix_ao.inputs[1])
+    l.new(ao_ramp.outputs["Color"], mix_ao.inputs[2])
+
+    # 6. Realistic Plaster Cracking: Locally clustered hairline cracks and upper branching fissures
+    # Cracks follow realistic plaster stress behaviour rather than appearing as repeated procedural lines everywhere
+    crack_mask_noise = n.new("ShaderNodeTexNoise")
+    crack_mask_noise.inputs["Scale"].default_value = 1.2
+    crack_mask_noise.inputs["Detail"].default_value = 3.5
+    l.new(pos, crack_mask_noise.inputs["Vector"])
+
+    crack_mask = n.new("ShaderNodeMapRange")
+    crack_mask.inputs["From Min"].default_value = 0.50
+    crack_mask.inputs["From Max"].default_value = 0.65
+    crack_mask.inputs["To Min"].default_value = 0.0
+    crack_mask.inputs["To Max"].default_value = 1.0
+    crack_mask.clamp = True
+    l.new(crack_mask_noise.outputs["Fac"], crack_mask.inputs["Value"])
+
+    vor_crack_fine = n.new("ShaderNodeTexVoronoi")
+    vor_crack_fine.feature = "DISTANCE_TO_EDGE"
+    vor_crack_fine.inputs["Scale"].default_value = 18.0
+    l.new(pos, vor_crack_fine.inputs["Vector"])
+
+    vor_crack_branch = n.new("ShaderNodeTexVoronoi")
+    vor_crack_branch.feature = "DISTANCE_TO_EDGE"
+    vor_crack_branch.inputs["Scale"].default_value = 5.2
+    l.new(pos, vor_crack_branch.inputs["Vector"])
+
+    crack_comb = n.new("ShaderNodeMath")
+    crack_comb.operation = "MINIMUM"
+    l.new(vor_crack_fine.outputs["Distance"], crack_comb.inputs[0])
+    l.new(vor_crack_branch.outputs["Distance"], crack_comb.inputs[1])
+
+    crack_ramp = n.new("ShaderNodeValToRGB")
+    crack_ramp.color_ramp.elements[0].position = 0.007
+    crack_ramp.color_ramp.elements[0].color = (0.08, 0.07, 0.05, 1.0)
+    crack_ramp.color_ramp.elements[1].position = 0.024
+    crack_ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    l.new(crack_comb.outputs["Value"], crack_ramp.inputs["Fac"])
+
+    # Isolate cracks into realistic organic clusters matching real plaster stress zones
+    crack_isolated = n.new("ShaderNodeMixRGB")
+    crack_isolated.blend_type = "MIX"
+    l.new(crack_mask.outputs["Result"], crack_isolated.inputs[0])
+    crack_isolated.inputs[1].default_value = (1.0, 1.0, 1.0, 1.0)
+    l.new(crack_ramp.outputs["Color"], crack_isolated.inputs[2])
+
+    mix_cracks = n.new("ShaderNodeMixRGB")
+    mix_cracks.blend_type = "MULTIPLY"
+    mix_cracks.inputs[0].default_value = 0.82
+    l.new(mix_ao.outputs["Color"], mix_cracks.inputs[1])
+    l.new(crack_isolated.outputs["Color"], mix_cracks.inputs[2])
+    l.new(mix_cracks.outputs["Color"], bs.inputs["Base Color"])
+
+    # 7. Four-tier physical surface relief:
+    # Plaster trowel waviness (Scale=2.2) + Plinth degradation chip + micro bumps (Scale=55) + stucco grit (Scale=190)
+    plaster_wave = n.new("ShaderNodeTexNoise")
+    plaster_wave.inputs["Scale"].default_value = 2.2
+    plaster_wave.inputs["Detail"].default_value = 2.5
+    l.new(pos, plaster_wave.inputs["Vector"])
+
+    bump_wave = n.new("ShaderNodeBump")
+    bump_wave.inputs["Strength"].default_value = 0.18
+    bump_wave.inputs["Distance"].default_value = 0.025
+    l.new(plaster_wave.outputs["Fac"], bump_wave.inputs["Height"])
+
+    # Crack physical indentation bump (only in active crack clusters)
+    crack_bump = n.new("ShaderNodeBump")
+    crack_bump.inputs["Strength"].default_value = 0.38
+    crack_bump.inputs["Distance"].default_value = 0.008
+    l.new(crack_isolated.outputs["Color"], crack_bump.inputs["Height"])
+    l.new(bump_wave.outputs["Normal"], crack_bump.inputs["Normal"])
+
+    micro_bumps = n.new("ShaderNodeTexNoise")
+    micro_bumps.inputs["Scale"].default_value = 55.0
+    micro_bumps.inputs["Detail"].default_value = 4.0
+    l.new(pos, micro_bumps.inputs["Vector"])
+
+    bump_micro = n.new("ShaderNodeBump")
+    bump_micro.inputs["Strength"].default_value = 0.22
+    bump_micro.inputs["Distance"].default_value = 0.010
+    l.new(micro_bumps.outputs["Fac"], bump_micro.inputs["Height"])
+    l.new(crack_bump.outputs["Normal"], bump_micro.inputs["Normal"])
+
+    stucco_grit = n.new("ShaderNodeTexNoise")
+    stucco_grit.inputs["Scale"].default_value = 190.0
+    stucco_grit.inputs["Detail"].default_value = 5.0
+    stucco_grit.inputs["Roughness"].default_value = 0.85
+    l.new(pos, stucco_grit.inputs["Vector"])
+
+    bump_grit = n.new("ShaderNodeBump")
+    bump_grit.inputs["Strength"].default_value = 0.32
+    bump_grit.inputs["Distance"].default_value = 0.005
+    l.new(stucco_grit.outputs["Fac"], bump_grit.inputs["Height"])
+    l.new(bump_micro.outputs["Normal"], bump_grit.inputs["Normal"])
+    l.new(bump_grit.outputs["Normal"], bs.inputs["Normal"])
+
+    return mat
+
+def column_textured_mat(name, base_hex="#9A7358"):
+    """
+    Round columns: muted dusty terracotta / beige-brown plaster finish (#9A7358).
+    Rough granular surface, subtle fading, dust and slight colour variation.
+    Textured plaster/concrete exterior coating with shadows and matte finish.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = 0.94
+    if "Specular IOR Level" in bs.inputs:
+        bs.inputs["Specular IOR Level"].default_value = 0.12
+    elif "Specular" in bs.inputs:
+        bs.inputs["Specular"].default_value = 0.12
+    if "Metallic" in bs.inputs:
+        bs.inputs["Metallic"].default_value = 0.0
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+
+    base_col = hex_to_linear(base_hex) # #9A7358
+    col_dark = hex_to_linear("#75533A") # Deep aged terracotta in crevices & undersides
+    col_mid  = hex_to_linear("#8E6549") # Dusty terracotta tone
+    col_fade = hex_to_linear("#9E775B") # Faded terracotta highlight (#9E775B)
+
+    # Subtle fading and natural colour variation across columns
+    coarse = n.new("ShaderNodeTexNoise")
+    coarse.inputs["Scale"].default_value = 35.0
+    coarse.inputs["Detail"].default_value = 4.0
+    coarse.inputs["Roughness"].default_value = 0.70
+    l.new(pos, coarse.inputs["Vector"])
+
+    ramp_color = n.new("ShaderNodeValToRGB")
+    ramp_color.color_ramp.elements[0].position = 0.12
+    ramp_color.color_ramp.elements[0].color = (*col_dark, 1.0)
+    ramp_color.color_ramp.elements[1].position = 0.50
+    ramp_color.color_ramp.elements[1].color = (*col_mid, 1.0)
+    e3 = ramp_color.color_ramp.elements.new(0.85)
+    e3.color = (*col_fade, 1.0)
+    l.new(coarse.outputs["Fac"], ramp_color.inputs["Fac"])
+
+    # Ambient occlusion in collar grooves and capital junctions
+    ao = n.new("ShaderNodeAmbientOcclusion")
+    ao.inputs["Distance"].default_value = 0.8
+    ao_ramp = n.new("ShaderNodeValToRGB")
+    ao_ramp.color_ramp.elements[0].position = 0.10
+    ao_ramp.color_ramp.elements[0].color = (0.20, 0.13, 0.08, 1.0)
+    ao_ramp.color_ramp.elements[1].position = 0.85
+    ao_ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    l.new(ao.outputs["AO"], ao_ramp.inputs["Fac"])
+
+    mix_ao = n.new("ShaderNodeMixRGB")
+    mix_ao.blend_type = "MULTIPLY"
+    mix_ao.inputs[0].default_value = 0.58
+    l.new(ramp_color.outputs["Color"], mix_ao.inputs[1])
+    l.new(ao_ramp.outputs["Color"], mix_ao.inputs[2])
+    l.new(mix_ao.outputs["Color"], bs.inputs["Base Color"])
+
+    # Heavy granular sand/stucco coating bump
+    gran_noise = n.new("ShaderNodeTexNoise")
+    gran_noise.inputs["Scale"].default_value = 210.0
+    gran_noise.inputs["Detail"].default_value = 5.0
+    gran_noise.inputs["Roughness"].default_value = 0.90
+    l.new(pos, gran_noise.inputs["Vector"])
+
+    bump_gran = n.new("ShaderNodeBump")
+    bump_gran.inputs["Strength"].default_value = 0.65
+    bump_gran.inputs["Distance"].default_value = 0.025
+    l.new(gran_noise.outputs["Fac"], bump_gran.inputs["Height"])
+
+    # Plaster undulation
+    wave = n.new("ShaderNodeTexNoise")
+    wave.inputs["Scale"].default_value = 3.5
+    wave.inputs["Detail"].default_value = 3.0
+    l.new(pos, wave.inputs["Vector"])
+
+    bump_wave = n.new("ShaderNodeBump")
+    bump_wave.inputs["Strength"].default_value = 0.25
+    bump_wave.inputs["Distance"].default_value = 0.015
+    l.new(wave.outputs["Fac"], bump_wave.inputs["Height"])
+    l.new(bump_wave.outputs["Normal"], bump_gran.inputs["Normal"])
+    l.new(bump_gran.outputs["Normal"], bs.inputs["Normal"])
+
+    return mat
+
+def recessed_area_mat(name, base_hex="#A98A72"):
+    """
+    Recessed architectural area around the windows: muted warm beige / dusty peach (#A98A72).
+    Slightly darker than the main wall due to material and recessed lighting.
+    Brownish weather stains around recesses.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = 0.90
+    if "Specular IOR Level" in bs.inputs:
+        bs.inputs["Specular IOR Level"].default_value = 0.16
+    elif "Specular" in bs.inputs:
+        bs.inputs["Specular"].default_value = 0.16
+    if "Metallic" in bs.inputs:
+        bs.inputs["Metallic"].default_value = 0.0
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+
+    base_col = hex_to_linear(base_hex) # #A98A72
+
+    # Brownish weather stains around architectural recesses
+    stain_noise = n.new("ShaderNodeTexNoise")
+    stain_noise.inputs["Scale"].default_value = 3.2
+    stain_noise.inputs["Detail"].default_value = 3.5
+    l.new(pos, stain_noise.inputs["Vector"])
+
+    stain_ramp = n.new("ShaderNodeValToRGB")
+    stain_ramp.color_ramp.elements[0].position = 0.25
+    stain_ramp.color_ramp.elements[0].color = (base_col[0] * 0.65, base_col[1] * 0.58, base_col[2] * 0.50, 1.0)
+    stain_ramp.color_ramp.elements[1].position = 0.75
+    stain_ramp.color_ramp.elements[1].color = (base_col[0], base_col[1], base_col[2], 1.0)
+    l.new(stain_noise.outputs["Fac"], stain_ramp.inputs["Fac"])
+
+    # Ambient occlusion shadow in recesses
+    ao = n.new("ShaderNodeAmbientOcclusion")
+    ao.inputs["Distance"].default_value = 1.0
+    ao_ramp = n.new("ShaderNodeValToRGB")
+    ao_ramp.color_ramp.elements[0].position = 0.05
+    ao_ramp.color_ramp.elements[0].color = (0.35, 0.28, 0.22, 1.0)
+    ao_ramp.color_ramp.elements[1].position = 0.85
+    ao_ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    l.new(ao.outputs["AO"], ao_ramp.inputs["Fac"])
+
+    mix_ao = n.new("ShaderNodeMixRGB")
+    mix_ao.blend_type = "MULTIPLY"
+    mix_ao.inputs[0].default_value = 0.55
+    l.new(stain_ramp.outputs["Color"], mix_ao.inputs[1])
+    l.new(ao_ramp.outputs["Color"], mix_ao.inputs[2])
+    l.new(mix_ao.outputs["Color"], bs.inputs["Base Color"])
+
+    # Plaster bump
+    bump_noise = n.new("ShaderNodeTexNoise")
+    bump_noise.inputs["Scale"].default_value = 120.0
+    bump_noise.inputs["Detail"].default_value = 4.0
+    l.new(pos, bump_noise.inputs["Vector"])
+
+    bump = n.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.24
+    bump.inputs["Distance"].default_value = 0.012
+    l.new(bump_noise.outputs["Fac"], bump.inputs["Height"])
+    l.new(bump.outputs["Normal"], bs.inputs["Normal"])
+
+    return mat
+
+def weathered_band_mat(name, base_hex="#8C7F70"):
+    """
+    Top horizontal bands/parapet edges: greyish beige/brown from accumulated dirt and weathering (#8C7F70).
+    Upward-facing horizontal surfaces accumulate heavy atmospheric soot and grime.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = 0.88
+    if "Specular IOR Level" in bs.inputs:
+        bs.inputs["Specular IOR Level"].default_value = 0.16
+    elif "Specular" in bs.inputs:
+        bs.inputs["Specular"].default_value = 0.16
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+    norm = geom.outputs["Normal"]
+
+    base_col = hex_to_linear(base_hex)
+
+    # Accumulate dirt on upward-facing edges (Normal Z > 0.18)
+    sep_norm = n.new("ShaderNodeSeparateXYZ")
+    l.new(norm, sep_norm.inputs["Vector"])
+
+    norm_range = n.new("ShaderNodeMapRange")
+    norm_range.inputs["From Min"].default_value = 0.18
+    norm_range.inputs["From Max"].default_value = 0.85
+    norm_range.inputs["To Min"].default_value = 0.0
+    norm_range.inputs["To Max"].default_value = 0.70
+    l.new(sep_norm.outputs["Z"], norm_range.inputs["Value"])
+
+    mix_dirt = n.new("ShaderNodeMixRGB")
+    mix_dirt.blend_type = "MULTIPLY"
+    mix_dirt.inputs[1].default_value = (*base_col, 1.0)
+    mix_dirt.inputs[2].default_value = (0.24, 0.22, 0.19, 1.0)
+    l.new(norm_range.outputs["Result"], mix_dirt.inputs[0])
+    l.new(mix_dirt.outputs["Color"], bs.inputs["Base Color"])
+
+    # Micro bump
+    b_noise = n.new("ShaderNodeTexNoise")
+    b_noise.inputs["Scale"].default_value = 105.0
+    b_noise.inputs["Detail"].default_value = 3.5
+    l.new(pos, b_noise.inputs["Vector"])
+
+    bump = n.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.22
+    bump.inputs["Distance"].default_value = 0.015
+    l.new(b_noise.outputs["Fac"], bump.inputs["Height"])
+    l.new(bump.outputs["Normal"], bs.inputs["Normal"])
+
+    return mat
+
+def dark_reflective_glass_mat(name, base_hex="#11161B", roughness=0.055):
+    """
+    Window glass: dark charcoal / blue-black reflective glass (#11161B),
+    with realistic subtle reflections rather than flat black material.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bs = nt.nodes.get("Principled BSDF")
+
+    base_col = hex_to_linear(base_hex)
+    bs.inputs["Base Color"].default_value = (*base_col, 1.0)
+    bs.inputs["Roughness"].default_value = roughness
+    if "Metallic" in bs.inputs:
+        bs.inputs["Metallic"].default_value = 0.08
+    if "IOR" in bs.inputs:
+        bs.inputs["IOR"].default_value = 1.52
+    if "Transmission Weight" in bs.inputs:
+        bs.inputs["Transmission Weight"].default_value = 0.12
+    elif "Transmission" in bs.inputs:
+        bs.inputs["Transmission"].default_value = 0.12
+    if "Specular IOR Level" in bs.inputs:
+        bs.inputs["Specular IOR Level"].default_value = 1.0
+    elif "Specular" in bs.inputs:
+        bs.inputs["Specular"].default_value = 1.0
+
+    return mat
+
+def aged_silver_grill_mat(name, base_hex="#5C6063"):
+    """
+    Window grills: aged metallic silver/grey with slight oxidation,
+    dirt accumulation and realistic metal roughness. Not clean or uniformly bright.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = 0.58
+    if "Metallic" in bs.inputs:
+        bs.inputs["Metallic"].default_value = 0.75
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+
+    base_col = hex_to_linear(base_hex)
+    noise = n.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 95.0
+    noise.inputs["Detail"].default_value = 4.0
+    l.new(pos, noise.inputs["Vector"])
+
+    ramp = n.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.32
+    ramp.color_ramp.elements[0].color = (0.04, 0.04, 0.04, 1.0)
+    ramp.color_ramp.elements[1].position = 0.68
+    ramp.color_ramp.elements[1].color = (*base_col, 1.0)
+    l.new(noise.outputs["Fac"], ramp.inputs["Fac"])
+    l.new(ramp.outputs["Color"], bs.inputs["Base Color"])
+
+    return mat
+
+def natural_stone_ramp_mat(name):
+    """
+    Stone-clad ramp/wall: irregular natural grey-blue stone pieces,
+    each stone having slightly different colour, roughness and shape, with dark grey grout.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = 0.85
+    if "Metallic" in bs.inputs:
+        bs.inputs["Metallic"].default_value = 0.0
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+
+    vor = n.new("ShaderNodeTexVoronoi")
+    vor.feature = "DISTANCE_TO_EDGE"
+    vor.inputs["Scale"].default_value = 8.0
+    l.new(pos, vor.inputs["Vector"])
+
+    # Voronoi cell noise for stone color variations
+    noise_stone = n.new("ShaderNodeTexNoise")
+    noise_stone.inputs["Scale"].default_value = 2.2
+    l.new(pos, noise_stone.inputs["Vector"])
+
+    stone_ramp = n.new("ShaderNodeValToRGB")
+    # Irregular natural grey-blue stone pieces
+    c1 = hex_to_linear("#556470") # Slate blue-grey
+    c2 = hex_to_linear("#3E4A54") # Deep charcoal-blue
+    c3 = hex_to_linear("#687988") # Light dusty grey-blue
+    c4 = hex_to_linear("#5C6166") # Earthy grey stone
+    stone_ramp.color_ramp.elements[0].position = 0.0
+    stone_ramp.color_ramp.elements[0].color = (*c2, 1.0)
+    stone_ramp.color_ramp.elements[1].position = 0.35
+    stone_ramp.color_ramp.elements[1].color = (*c1, 1.0)
+    e3 = stone_ramp.color_ramp.elements.new(0.70)
+    e3.color = (*c3, 1.0)
+    e4 = stone_ramp.color_ramp.elements.new(1.0)
+    e4.color = (*c4, 1.0)
+    l.new(noise_stone.outputs["Fac"], stone_ramp.inputs["Fac"])
+
+    # Mortar grout: dark grey #222528
+    grout_col = hex_to_linear("#222528")
+    grout_ramp = n.new("ShaderNodeValToRGB")
+    grout_ramp.color_ramp.elements[0].position = 0.065
+    grout_ramp.color_ramp.elements[0].color = (0.0, 0.0, 0.0, 1.0)
+    grout_ramp.color_ramp.elements[1].position = 0.095
+    grout_ramp.color_ramp.elements[1].color = (1.0, 1.0, 1.0, 1.0)
+    l.new(vor.outputs["Distance"], grout_ramp.inputs["Fac"])
+
+    mix_grout = n.new("ShaderNodeMixRGB")
+    mix_grout.blend_type = "MIX"
+    l.new(grout_ramp.outputs["Color"], mix_grout.inputs[0])
+    mix_grout.inputs[1].default_value = (*grout_col, 1.0)
+    l.new(stone_ramp.outputs["Color"], mix_grout.inputs[2])
+    l.new(mix_grout.outputs["Color"], bs.inputs["Base Color"])
+
+    # Bump relief: stone blocks raised, grout recessed + natural stone roughness
+    bump = n.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.42
+    bump.inputs["Distance"].default_value = 0.024
+    l.new(grout_ramp.outputs["Color"], bump.inputs["Height"])
+
+    stone_grit = n.new("ShaderNodeTexNoise")
+    stone_grit.inputs["Scale"].default_value = 85.0
+    stone_grit.inputs["Detail"].default_value = 3.0
+    l.new(pos, stone_grit.inputs["Vector"])
+
+    bump_grit = n.new("ShaderNodeBump")
+    bump_grit.inputs["Strength"].default_value = 0.20
+    bump_grit.inputs["Distance"].default_value = 0.008
+    l.new(stone_grit.outputs["Fac"], bump_grit.inputs["Height"])
+    l.new(bump.outputs["Normal"], bump_grit.inputs["Normal"])
+    l.new(bump_grit.outputs["Normal"], bs.inputs["Normal"])
+
+    return mat
+
+def plinth_foundation_mat(name):
+    """
+    Lower plinth/foundation significantly stronger weathering:
+    cracked plaster/concrete, black-grey moisture staining, accumulated dirt,
+    dark edges, chipped areas and irregular surface deterioration.
+    """
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    n, l = nt.nodes, nt.links
+    n.clear()
+
+    out = n.new("ShaderNodeOutputMaterial")
+    bs = n.new("ShaderNodeBsdfPrincipled")
+    bs.inputs["Roughness"].default_value = 0.96
+    l.new(bs.outputs["BSDF"], out.inputs["Surface"])
+
+    geom = n.new("ShaderNodeNewGeometry")
+    pos = geom.outputs["Position"]
+
+    # Heavy black-grey staining and splash-back earth dirt
+    noise_damp = n.new("ShaderNodeTexNoise")
+    noise_damp.inputs["Scale"].default_value = 4.2
+    noise_damp.inputs["Detail"].default_value = 4.0
+    l.new(pos, noise_damp.inputs["Vector"])
+
+    ramp_damp = n.new("ShaderNodeValToRGB")
+    c_dirt = hex_to_linear("#34302A")
+    c_moist = hex_to_linear("#212324")
+    c_base = hex_to_linear("#8E877B")
+    ramp_damp.color_ramp.elements[0].position = 0.20
+    ramp_damp.color_ramp.elements[0].color = (*c_moist, 1.0)
+    ramp_damp.color_ramp.elements[1].position = 0.55
+    ramp_damp.color_ramp.elements[1].color = (*c_dirt, 1.0)
+    e3 = ramp_damp.color_ramp.elements.new(0.85)
+    e3.color = (*c_base, 1.0)
+    l.new(noise_damp.outputs["Fac"], ramp_damp.inputs["Fac"])
+    l.new(ramp_damp.outputs["Color"], bs.inputs["Base Color"])
+
+    # Chipped plaster/concrete surface deterioration bump
+    chip_noise = n.new("ShaderNodeTexNoise")
+    chip_noise.inputs["Scale"].default_value = 25.0
+    chip_noise.inputs["Detail"].default_value = 5.0
+    chip_noise.inputs["Roughness"].default_value = 0.85
+    l.new(pos, chip_noise.inputs["Vector"])
+
+    bump_chip = n.new("ShaderNodeBump")
+    bump_chip.inputs["Strength"].default_value = 0.55
+    bump_chip.inputs["Distance"].default_value = 0.035
+    l.new(chip_noise.outputs["Fac"], bump_chip.inputs["Height"])
+    l.new(bump_chip.outputs["Normal"], bs.inputs["Normal"])
+
+    return mat
+
+# Calibrated Architectural Material Palette
+cream = wall_plaster_weathered_mat("Main warm ivory exterior plaster", "#D8D0C2", roughness=0.92)
+pink = recessed_area_mat("Recessed architectural peach", "#A98A72")
+trim = weathered_band_mat("Top weathered horizontal bands", "#8C7F70")
+mat_column = column_textured_mat("Granular column exterior finish", "#9A7358")
+mat_stone_ramp = natural_stone_ramp_mat("Irregular grey-blue stone masonry")
+mat_window_grill = aged_silver_grill_mat("Aged silver oxidised window grill", "#63666A")
+
+concrete = plinth_foundation_mat("Weathered foundation concrete")
+panel = aged_mat("Inset ochre aggregate panels", (.48, .36, .22), roughness=.88, strength=.16, bump_distance=.03)
+white = aged_mat("Warm off-white interior plaster", (.76, .74, .70), roughness=.90, strength=.05)
+red = aged_mat("Aged terracotta red stair stone", (.36, .17, .12), roughness=.88, strength=.22, bump_distance=.018)
+stone = aged_mat("Weathered cream stair stone", (.65, .62, .54), roughness=.86, strength=.16)
+asphalt = aged_mat("Forecourt paving", (.20, .21, .20), roughness=.92, strength=.25, bump_distance=.03)
 soil = aged_mat("Compacted soil", (.16, .12, .08), strength=.25)
 moss = aged_mat("Landscaping greenery", (.18, .25, .12), strength=.25)
 tile = aged_mat("Speckled terrazzo floor", (.52, .54, .53), roughness=.22, strength=.12, bump_distance=.006)
 grout = simple_mat("Tile joints", (.35, .36, .35))
-metal = simple_mat("Brushed stainless steel", (.75, .76, .78), .18, .92)
-railmat = simple_mat("Stainless steel railing", (.75, .76, .78), .18, .92)
+metal = simple_mat("Aged dark bronze/charcoal window frame", (.18, .20, .22), .62, .75)
+railmat = simple_mat("Aged silver-grey railing", (.38, .40, .42), .52, .68)
 dark = simple_mat("Unlit recess and vent interiors", (.025, .03, .029))
 rubber = simple_mat("Black glazing seals", (.018, .021, .022), .9)
 rust = aged_mat("Oxidized brackets", (.30, .15, .08), strength=.25)
@@ -197,27 +888,14 @@ elif bs_vg and "Transmission" in bs_vg.inputs:
 mat_alarm_red = simple_mat("Fire alarm call point red", (.78, .06, .05), .30)
 mat_skirting_granite = simple_mat("Dark granite skirting", (.18, .19, .20), .20)
 
+# Window Glass: Very dark charcoal / blue-black (#11161B), highly reflective
 glass_mats = []
 for i in range(5):
-    mat = simple_mat(
-        "Dusty glazing variant %02d" % i,
-        (.12 + i*.012, .17 + i*.012, .175 + i*.014),
-        .16 + .028*i, .08)
-    bs = mat.node_tree.nodes.get("Principled BSDF")
-    bs.inputs["Transmission Weight"].default_value = .34
-    bs.inputs["IOR"].default_value = 1.46
-
-    nt = mat.node_tree
-    noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 65
-    ramp = nt.nodes.new("ShaderNodeMapRange")
-    ramp.inputs["From Min"].default_value = 0
-    ramp.inputs["From Max"].default_value = 1
-    ramp.inputs["To Min"].default_value = .12
-    ramp.inputs["To Max"].default_value = .30
-    nt.links.new(noise.outputs["Fac"], ramp.inputs["Value"])
-    nt.links.new(ramp.outputs["Result"], bs.inputs["Roughness"])
-    glass_mats.append(mat)
+    glass_mats.append(dark_reflective_glass_mat(
+        "Highly reflective dark charcoal glazing %02d" % i,
+        "#11161B",
+        roughness=0.04 + 0.01 * i
+    ))
 
 skylight_glass = simple_mat("Clouded skylight glass", (.56, .63, .64), .22)
 bs = skylight_glass.node_tree.nodes.get("Principled BSDF")
@@ -419,10 +1097,10 @@ def frame_window(name, u, plane, bottom, width, height,
         for k in range(int(width/.18)+1):
             du = -width/2+k*.18
             local_box(name+" security grille",du,-.15,
-                      bottom+height/2,.018,.022,height,railmat)
+                      bottom+height/2,.018,.022,height,mat_window_grill)
         for f in (.2,.5,.8):
             local_box(name+" grille crossbar",0,-.16,bottom+height*f,
-                      width,.025,.022,railmat)
+                      width,.025,.022,mat_window_grill)
 
 def railing(name, a, b, base, height=1.05, mat=railmat, spacing=.55):
     a,b = Vector(a),Vector(b)
@@ -435,7 +1113,7 @@ def railing(name, a, b, base, height=1.05, mat=railmat, spacing=.55):
         rod(name+" horizontal",(a.x,a.y,base+dz),
             (b.x,b.y,base+dz),.024 if dz < height else .035,mat)
 
-def column(name,x,y,z0,z1,r=.30,mat=pink):
+def column(name,x,y,z0,z1,r=.30,mat=mat_column):
     cylinder(name+" shaft",(x,y,(z0+z1)/2),r,z1-z0,mat,40)
     for z,rr,hh in (
         (z0+.08,r*1.20,.16),(z0+.22,r*1.07,.10),
@@ -585,7 +1263,7 @@ for sign in (-1,1):
 
     for dx in (-1.65,1.65):
         column("Classical tall bay column",center+dx,-.49,
-               13.00,19.77,.22,pink)
+               13.00,19.77,.22,mat_column)
     pediment(center,-.51,20.05,3.95)
 
     # Ground-level arched opening. Infill above the arch is solid.
@@ -700,7 +1378,7 @@ for x in (-2.40,-.80,.80,2.40):
 
 for x in (-4.65,-4.05,4.05,4.65):
     column("Paired monumental central column",x,-.92,
-           8.48,17.60,.27,pink)
+           8.48,17.60,.27,mat_column)
 
 # Upper polygonal projection.
 crown=[(-6.4,1.1),(-6.4,-.75),(-5.45,-2.0),
@@ -721,7 +1399,7 @@ frame_window("Central crown wide glazing",0,-1.38,19.1,8.7,1.98,
              cols=6,rows=2)
 group("02_Front_Facade")
 for x in (-1.90,-1.36,1.36,1.90):
-    column("Crown paired small columns",x,-1.98,19.05,21.12,.20,pink)
+    column("Crown paired small columns",x,-1.98,19.05,21.12,.20,mat_column)
 for z,hh in ((22.25,.10),(22.92,.15),(23.12,.13)):
     box("Central crown moulded cornice",(0,-1.90,z),
         (11.0,.60,hh),trim)
@@ -753,7 +1431,7 @@ for x in (-7.40,7.40):
     box("Portico pier plinth",(x,-4.25,.18),(.85,.97,.36),concrete)
     for y in (-1.20,2.8):
         column("Portico supporting cylindrical column",x,y,
-               0,8.05,.34,cream)
+               0,8.05,.34,mat_column)
 
 for x in (-6.0,0,6.0):
     box("Portico deep longitudinal soffit beam",(x,-2.25,7.82),
@@ -787,7 +1465,7 @@ for sign in (-1,1):
            (x1,y1,GROUND-.18),(x0,y1,GROUND-.18)]
     mesh_obj("Solid sloping side access ramp",verts,
              [(0,1,2,3),(4,7,6,5),(0,4,5,1),
-              (1,5,6,2),(2,6,7,3),(3,7,4,0)],concrete)
+              (1,5,6,2),(2,6,7,3),(3,7,4,0)],mat_stone_ramp)
     x=sign*10.12
     for k in range(9):
         t=k/8
@@ -1403,9 +2081,12 @@ for sign in (-1,1):
                          random.uniform(.25,1.7),
                          random.uniform(.07,.36))
 
-# Fine cracks drawn as short branching paths, not oversized black marks.
-crackmat=simple_mat("Hairline plaster fissure",(.18,.155,.12),1)
+# Naturally distributed hairline cracks and larger branching cracks around upper window/arch
+crackmat=simple_mat("Hairline plaster fissure",(.14,.12,.10),1)
+deep_crackmat=simple_mat("Deep structural fissure",(.06,.05,.04),1)
+
 for sign in (-1,1):
+    # 1. Subtle hairline cracks distributed across upper facade plaster
     for z in (2.8,7.7,12.5,18.2):
         x=sign*12.50+random.uniform(-.25,.25)
         pts=[(x,-.266,z),
@@ -1415,6 +2096,56 @@ for sign in (-1,1):
         path("Subtle branching plaster crack",pts,.0025,crackmat)
         path("Hairline crack branch",
              [pts[2],(x-.15,-.268,z-.43)],.0018,crackmat)
+
+    # 2. Larger branching cracks around the upper window and arch
+    center = sign * 10.35
+    # Arch spandrel keystone stress crack
+    arch_pts = [
+        (center, -.342, 7.42),
+        (center + sign * .08, -.343, 7.68),
+        (center + sign * .02, -.343, 7.95),
+        (center + sign * .14, -.343, 8.28)
+    ]
+    path("Arch spandrel branching crack", arch_pts, .0038, deep_crackmat)
+    path("Arch spandrel secondary branch",
+         [arch_pts[1], (center - sign * .12, -.343, 7.82), (center - sign * .18, -.343, 8.05)],
+         .0024, crackmat)
+
+    # Arch flank stress cracks along curved voussoirs
+    flank_pts = [
+        (center + sign * 1.35, -.342, 6.20),
+        (center + sign * 1.48, -.343, 6.55),
+        (center + sign * 1.62, -.343, 6.85)
+    ]
+    path("Arch flank curved crack", flank_pts, .0032, deep_crackmat)
+
+    # Upper window jamb corner stress cracks
+    for wz in (8.90, 13.05, 19.75):
+        for dx_corner in (-1.32, 1.32):
+            w_pts = [
+                (center + dx_corner, -.315, wz),
+                (center + dx_corner + (0.12 if dx_corner > 0 else -0.12), -.316, wz + 0.22),
+                (center + dx_corner + (0.22 if dx_corner > 0 else -0.22), -.316, wz + 0.48)
+            ]
+            path("Upper window corner branching crack", w_pts, .0030, deep_crackmat)
+            path("Upper window fissure branch",
+                 [w_pts[1], (center + dx_corner + (0.18 if dx_corner > 0 else -0.18), -.316, wz + 0.35)],
+                 .0020, crackmat)
+
+    # 3. Bottom foundation/plinth heavier cracking, black staining, and moisture weathering
+    for k in range(5):
+        fx = sign * (6.5 + k * 2.2)
+        fz = GROUND + random.uniform(0.12, 0.45)
+        plinth_pts = [
+            (fx, -.340, fz),
+            (fx + random.uniform(0.2, 0.4), -.341, fz + random.uniform(-0.06, 0.08)),
+            (fx + random.uniform(0.5, 0.8), -.341, fz + random.uniform(-0.04, 0.12)),
+            (fx + random.uniform(0.9, 1.3), -.341, fz + random.uniform(-0.08, 0.05))
+        ]
+        path("Foundation plinth heavy distress crack", plinth_pts, .0045, deep_crackmat)
+        path("Plinth branch fissure",
+             [plinth_pts[2], (plinth_pts[2][0] + 0.15, -.341, plinth_pts[2][2] - 0.20)],
+             .0028, crackmat)
 
 # Irregular exposed-plaster chips, kept small.
 for _ in range(35):
@@ -1510,16 +2241,33 @@ for _ in range(95):
 
 group("11_Lighting_Cameras")
 
-world=bpy.data.worlds.new("Soft overcast daylight")
+world=bpy.data.worlds.new("Atmospheric Indian Daylight")
 world.use_nodes=True
 scene.world=world
 nt=world.node_tree
 nt.nodes.clear()
 out=nt.nodes.new("ShaderNodeOutputWorld")
 bg=nt.nodes.new("ShaderNodeBackground")
-bg.inputs["Color"].default_value=(.66,.73,.80,1)
-bg.inputs["Strength"].default_value=.48
-nt.links.new(bg.outputs[0],out.inputs["Surface"])
+
+# Physical Nishita / Multiple-scattering Sky Texture for authentic Indian atmospheric daylight
+sky=nt.nodes.new("ShaderNodeTexSky")
+sky.sky_type="MULTIPLE_SCATTERING"
+sky.sun_elevation=math.radians(38.0)
+sky.sun_rotation=math.radians(-32.0)
+sky.altitude=560.0
+sky.air_density=1.15
+sky.ozone_density=1.05
+if hasattr(sky, "aerosol_density"):
+    sky.aerosol_density=1.25
+elif hasattr(sky, "dust_density"):
+    sky.dust_density=1.25
+sky.sun_intensity=0.88
+sky.sun_disc=True
+sky.ground_albedo=0.22
+
+bg.inputs["Strength"].default_value=0.70
+nt.links.new(sky.outputs["Color"], bg.inputs["Color"])
+nt.links.new(bg.outputs[0], out.inputs["Surface"])
 
 def area(name,loc,energy,size,color,target):
     data=bpy.data.lights.new(name,"AREA")
@@ -1533,10 +2281,11 @@ def area(name,loc,energy,size,color,target):
     obj.rotation_euler=(Vector(target)-obj.location).to_track_quat("-Z","Y").to_euler()
     return obj
 
+# Gentle atmospheric fill lights matching real ambient bounce, avoiding overexposure
 area("Broad cloud-filtered daylight",(-20,-16,42),
-     4500,32,(1.0,.96,.90),(0,7,8))
+     750,32,(1.0,.96,.90),(0,7,8))
 area("Cool open-sky fill",(20,8,33),
-     2500,28,(.82,.90,1.0),(0,8,10))
+     480,28,(.82,.90,1.0),(0,8,10))
 
 # Interior Atrium and Corridor Lighting
 area("Atrium interior warm fill", (0, 12.6, 16.0), 3200, 18, (1.0, 0.98, 0.94), (0, 12.6, 0))
@@ -1544,13 +2293,14 @@ area("Atrium interior warm fill", (0, 12.6, 16.0), 3200, 18, (1.0, 0.98, 0.94), 
 area("Corridor door A119 soft fill", (9.6, 8.0, 2.6), 180, 4.0, (1.0, 0.96, 0.90), (11.45, 7.4, 1.5))
 area("Corridor door A119 ambient bounce", (10.0, 6.2, 1.8), 120, 4.0, (1.0, 0.98, 0.95), (11.45, 7.4, 1.5))
 
-# Soft sun for subtle architectural shadows.
+# Directional daylight for natural architectural depth and overhang shadows
 sun_data=bpy.data.lights.new("Diffuse daylight direction","SUN")
-sun_data.energy=.75
-sun_data.angle=math.radians(22)
+sun_data.energy=1.40
+sun_data.angle=math.radians(7.5)
+sun_data.color=(1.0, 0.97, 0.92)
 sun=bpy.data.objects.new("Diffuse daylight direction",sun_data)
 ACTIVE.objects.link(sun)
-sun.rotation_euler=(math.radians(24),math.radians(-22),math.radians(-30))
+sun.rotation_euler=(math.radians(38),math.radians(-18),math.radians(-42))
 
 def camera(name,location,target,lens):
     data=bpy.data.cameras.new(name)

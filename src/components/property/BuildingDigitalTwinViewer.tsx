@@ -252,6 +252,7 @@ function createAtriumFloorTexture(): THREE.CanvasTexture {
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.anisotropy = 16;
+  texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
@@ -330,18 +331,19 @@ function createDoorVolumeMarker(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'doorVolumeMarker';
 
-  // 1.80m W x 2.44m H x 0.22m D bounding volume
+  // 1.80m W x 2.44m H x 0.22m D bounding volume — clearly visible selected-door outline
   const boxGeo = new THREE.BoxGeometry(1.80, 2.44, 0.22);
   const edges = new THREE.EdgesGeometry(boxGeo);
   const edgeLine = new THREE.LineSegments(
     edges,
-    new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 })
+    new THREE.LineBasicMaterial({ color: 0x00eeff, transparent: true, opacity: 0.92, linewidth: 2 })
   );
   group.add(edgeLine);
 
+  // Subtle fill so the selected boundary stands out even in bright scenes
   const fillMesh = new THREE.Mesh(
     boxGeo,
-    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.14, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0x00ccff, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.BackSide })
   );
   group.add(fillMesh);
 
@@ -507,7 +509,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
   // Mesh & Room Tracking
   const meshesRef = useRef<{ mesh: THREE.Mesh; originalMat: any; origY: number; floor: number; isDoor: boolean; isExterior: boolean; name: string }[]>([]);
   const roomDoorsRef = useRef<RoomDoorRecord[]>([]);
-  const atriumFloorMeshRef = useRef<THREE.Mesh | null>(null);
+  const atriumFloorMeshRef  = useRef<THREE.Mesh | null>(null);
+  const groundMeshRef        = useRef<THREE.Mesh | null>(null);
   // buildingGroundMeshRef removed (sky blue sheet removed per user request)
   const frontPillarsRef = useRef<THREE.Group[]>([]);
   const pottedPlantsRef = useRef<THREE.Group[]>([]);
@@ -518,6 +521,9 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
   const tileWaveRingRef = useRef<THREE.Mesh | null>(null);
   const hasConstructedRef = useRef(false);
   const isFlyingRef = useRef(false);
+  const targetRoomRef = useRef(targetRoomNumber);
+  targetRoomRef.current = targetRoomNumber;
+  const prevTargetRoomRef = useRef(targetRoomNumber);
 
   // States
   const [animStage, setAnimStage] = useState<'idle' | 'empty' | 'building' | 'entering' | 'at_room' | 'free_orbit'>('idle');
@@ -547,20 +553,48 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     const scene = new THREE.Scene();
     sceneRef.current = scene;
     
-    // Architectural Overcast Sky (Slightly dark neutral studio overcast matching user reference image)
-    scene.background = new THREE.Color('#949aa2');
-    scene.fog = new THREE.FogExp2('#949aa2', 0.0024);
+    // Atmospheric Nishita Daylight Sky matching front_reconstruction.png
+    const createAtmosphericSky = (): THREE.CanvasTexture => {
+      const cv = document.createElement('canvas');
+      cv.width = 1024;
+      cv.height = 1024;
+      const ctx = cv.getContext('2d')!;
+      const grad = ctx.createLinearGradient(0, 0, 0, 1024);
+      // Beautiful Nishita Daylight Sky matching front_reconstruction.png:
+      // Equirectangular mapping: Y=0 is zenith (+90°), Y=512 is horizon (0°), Y=1024 is nadir (-90°)
+      grad.addColorStop(0.00, '#78aee4'); // Deep azure zenith
+      grad.addColorStop(0.20, '#93c2ec'); // Mid-upper sky
+      grad.addColorStop(0.36, '#b4d6f3'); // Sky angle right behind building roof (+25°)
+      grad.addColorStop(0.46, '#d9eaf7'); // Soft atmospheric haze right above horizon
+      grad.addColorStop(0.50, '#f2f7fc'); // Luminous horizon
+      grad.addColorStop(0.54, '#e4ebf2'); // Below horizon ground haze
+      grad.addColorStop(1.00, '#7e786e'); // Diffuse ground reflection tone
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1024, 1024);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.mapping = THREE.EquirectangularReflectionMapping;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    };
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    const skyTex = createAtmosphericSky();
+    scene.background = skyTex;
+    scene.environment = skyTex;
+    scene.fog = new THREE.Fog('#edf5fc', 220, 800);
+
+    // Frame entire building vertically from steps to roof parapet with margins
+    const aspect = width / height;
+    const camera = new THREE.PerspectiveCamera(48, aspect, 0.1, 1000);
     cameraRef.current = camera;
-    camera.position.set(0, 15, 52); // Direct front facade eye level
+    camera.position.set(3.4, 1.80, 36.5); // Perfectly framed front elevation
+    camera.lookAt(0.174, 11.20, 1.50);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     rendererRef.current = renderer;
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.06; // Calm, slightly dark studio overcast exposure
+    renderer.toneMappingExposure = 1.0;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
@@ -569,28 +603,42 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     controlsRef.current = controls;
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.maxPolarAngle = Math.PI / 2 + 0.02;
-    controls.enabled = false;
+    controls.target.set(0.174, 11.20, 1.50);
+    controls.maxPolarAngle = Math.PI / 2 + 0.04;
+    controls.enabled = true;
 
-    // --- Studio Atmospheric Lighting Matching Architectural Overcast Reference ---
-    const hemiLight = new THREE.HemisphereLight(0xcfd6de, 0x2b2f35, 1.45);
-    scene.add(hemiLight);
-
-    const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.75);
-    sunLight.position.set(28, 48, 40);
+    // --- Atmospheric Daylight Lighting matching front_reconstruction.png ---
+    // Primary directional sunlight matching Blender Cycles sun (elevation 42°, azimuth upper left)
+    const sunLight = new THREE.DirectionalLight(0xfffaee, 1.95);
+    sunLight.position.set(-28, 44, 32);
+    sunLight.target.position.set(0, 8, -6);
+    scene.add(sunLight.target);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 2048;
-    sunLight.shadow.mapSize.height = 2048;
-    sunLight.shadow.bias = -0.0001;
+    sunLight.shadow.mapSize.width = 4096;
+    sunLight.shadow.mapSize.height = 4096;
+    sunLight.shadow.camera.left = -38;
+    sunLight.shadow.camera.right = 38;
+    sunLight.shadow.camera.top = 34;
+    sunLight.shadow.camera.bottom = -18;
+    sunLight.shadow.camera.near = 5;
+    sunLight.shadow.camera.far = 160;
+    sunLight.shadow.bias = -0.0002;
+    sunLight.shadow.normalBias = 0.025;
     scene.add(sunLight);
 
-    const fillLight = new THREE.DirectionalLight(0x94a3b8, 0.85);
-    fillLight.position.set(-24, 25, 35);
-    scene.add(fillLight);
+    // Soft open-sky daylight + subtle warm ground bounce
+    const hemiLight = new THREE.HemisphereLight(0xc8e0f7, 0x6e665d, 0.58);
+    scene.add(hemiLight);
 
-    const bounceLight = new THREE.DirectionalLight(0xb0bec5, 0.45);
-    bounceLight.position.set(0, -10, 20);
-    scene.add(bounceLight);
+    // Cool open-sky atmospheric fill from upper right
+    const skyFill = new THREE.DirectionalLight(0xadd0f2, 0.32);
+    skyFill.position.set(26, 30, 22);
+    scene.add(skyFill);
+
+    // Warm forecourt upward bounce softly illuminating soffits, overhangs and portico ceiling
+    const groundBounce = new THREE.DirectionalLight(0xe5dcce, 0.32);
+    groundBounce.position.set(0, -10, 16);
+    scene.add(groundBounce);
 
     // Bright Multi-Level Atrium Lights (Centered at Atrium Center Z = -12.6)
     const atriumLight1 = new THREE.PointLight(0xfff8f0, 3.8, 45);
@@ -605,65 +653,22 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     atriumLight3.position.set(0, 18.0, -12.6);
     scene.add(atriumLight3);
 
-    // --- Slightly Dark Ground (Charcoal/Dark Asphalt matching user reference image) ---
-    const groundGeo = new THREE.PlaneGeometry(350, 350);
+    // --- Forecourt Ground Paving matching front_reconstruction.png ---
+    const groundGeo = new THREE.PlaneGeometry(600, 600);
     const groundMat = new THREE.MeshStandardMaterial({ 
-      color: 0x383c42, // Slightly dark charcoal asphalt matching reference photo
-      roughness: 0.85, 
-      metalness: 0.06 
+      color: 0xd8dde2, // Bright, clean daylight forecourt paving matching reference photo
+      roughness: 0.92, 
+      metalness: 0.02 
     });
     const groundMesh = new THREE.Mesh(groundGeo, groundMat);
     groundMesh.rotation.x = -Math.PI / 2;
-    groundMesh.position.y = -0.88; // Placed at -0.88 so entrance steps & risers sit cleanly on top
+    groundMesh.position.y = -0.90; // Placed at -0.90 matching Blender GROUND
     groundMesh.receiveShadow = true;
+    groundMesh.visible = false; // Hidden until construction sequence reveals it
     scene.add(groundMesh);
+    groundMeshRef.current = groundMesh;
 
-    // Sky blue building ground sheet removed per user request ("remove this sky blue sheet")
-
-    // --- Visible Front Portico Small Round Pillars ---
-    // User requirement: "the stares and round small piller is not village at front make it visible"
     const frontPillars: THREE.Group[] = [];
-    const createFrontRoundPillar = (px: number, pz: number) => {
-      const g = new THREE.Group();
-      // Round Pillar Plinth
-      const plinthGeo = new THREE.CylinderGeometry(0.36, 0.40, 0.28, 24);
-      const plinthMat = new THREE.MeshStandardMaterial({ color: 0xd9a994, roughness: 0.65 });
-      const plinth = new THREE.Mesh(plinthGeo, plinthMat);
-      plinth.position.y = -0.85 + 0.14;
-      plinth.castShadow = true;
-      plinth.receiveShadow = true;
-      g.add(plinth);
-
-      // Round Pillar Shaft
-      const shaftGeo = new THREE.CylinderGeometry(0.28, 0.30, 1.45, 24);
-      const shaftMat = new THREE.MeshStandardMaterial({ color: 0xf4efe8, roughness: 0.55 });
-      const shaft = new THREE.Mesh(shaftGeo, shaftMat);
-      shaft.position.y = -0.85 + 0.28 + 0.725;
-      shaft.castShadow = true;
-      shaft.receiveShadow = true;
-      g.add(shaft);
-
-      // Round Pillar Capital
-      const capGeo = new THREE.CylinderGeometry(0.35, 0.30, 0.18, 24);
-      const cap = new THREE.Mesh(capGeo, plinthMat);
-      cap.position.y = -0.85 + 0.28 + 1.45 + 0.09;
-      cap.castShadow = true;
-      g.add(cap);
-
-      // Spherical Finial
-      const finialGeo = new THREE.SphereGeometry(0.22, 16, 16);
-      const finial = new THREE.Mesh(finialGeo, shaftMat);
-      finial.position.y = -0.85 + 0.28 + 1.45 + 0.18 + 0.18;
-      finial.castShadow = true;
-      g.add(finial);
-
-      g.position.set(px, 0, pz);
-      scene.add(g);
-      frontPillars.push(g);
-    };
-
-    createFrontRoundPillar(-7.6, 9.2);
-    createFrontRoundPillar(7.6, 9.2);
     frontPillarsRef.current = frontPillars;
 
     // -----------------------------------------------------------------------
@@ -683,6 +688,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     atriumFloorMesh.rotation.x = -Math.PI / 2;
     atriumFloorMesh.position.set(0, 0.07, -12.6); // Elevated at y=0.07 above the slab so it's fully visible and crisp
     atriumFloorMesh.receiveShadow = true;
+    atriumFloorMesh.visible = false; // Hidden until Phase 1 of construction sequence
+    atriumFloorMesh.scale.set(0.01, 0.01, 0.01);
     scene.add(atriumFloorMesh);
     atriumFloorMeshRef.current = atriumFloorMesh;
 
@@ -715,6 +722,7 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
       plantGroup.add(foliage);
 
       plantGroup.position.set(px, 0.07, pz);
+      plantGroup.visible = false; // Hidden until construction Phase 5 reveals them
       scene.add(plantGroup);
       plants.push(plantGroup);
     };
@@ -754,12 +762,13 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     tileWaveRingRef.current = tileWave;
     scene.add(tileWave);
 
-    // Resize Handler
+    // Resize Handler maintaining exact Blender 25mm lens framing
     const handleResize = () => {
       if (!mountRef.current || !rendererRef.current || !cameraRef.current) return;
       const w = mountRef.current.clientWidth;
       const h = mountRef.current.clientHeight;
       cameraRef.current.aspect = w / h;
+      cameraRef.current.fov = 48;
       cameraRef.current.updateProjectionMatrix();
       rendererRef.current.setSize(w, h);
     };
@@ -828,17 +837,406 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
         root.position.set(0, 0, 0);
         const collected: any[] = [];
 
-        // Pre-defined Reference Color Materials matching front_reconstruction.png
-        const matCream = new THREE.MeshStandardMaterial({ color: 0xf4efe8, roughness: 0.65, metalness: 0.05 });
-        const matPeach = new THREE.MeshStandardMaterial({ color: 0xd9a994, roughness: 0.55, metalness: 0.05 });
-        const matTerracotta = new THREE.MeshStandardMaterial({ color: 0xba4530, roughness: 0.60, metalness: 0.05 });
-        const matStoneTread = new THREE.MeshStandardMaterial({ color: 0xede7df, roughness: 0.70, metalness: 0.05 });
-        const matWoodBeech = new THREE.MeshStandardMaterial({ color: 0xd7ac7c, roughness: 0.45, metalness: 0.05 });
-        const matStainless = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.25, metalness: 0.85 });
-        const matGlass = new THREE.MeshPhysicalMaterial({ color: 0x5f8099, transparent: true, opacity: 0.45, roughness: 0.1, transmission: 0.6 });
-        const matFireRed = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.3, metalness: 0.1 });
-        const matGranite = new THREE.MeshStandardMaterial({ color: 0x27272a, roughness: 0.4, metalness: 0.1 });
-        const matWindowFrame = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.35, metalness: 0.65 });
+        // Procedural Stucco Wall Texture (fine grain + subtle plaster color variation + rainwater runoff + hairline cracks)
+        const createWallStuccoTexture = (): THREE.CanvasTexture => {
+          const sz = 1024;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+          ctx.fillStyle = '#D8D0C2'; // Warm ivory / off-white base #D8D0C2
+          ctx.fillRect(0, 0, sz, sz);
+
+          const img = ctx.getImageData(0, 0, sz, sz);
+          const d = img.data;
+          for (let y = 0; y < sz; y++) {
+            for (let x = 0; x < sz; x++) {
+              const idx = (y * sz + x) * 4;
+              // Multi-frequency noise for stucco granular tooth and subtle plaster undulation
+              const n1 = Math.sin(x * 0.05) * Math.cos(y * 0.05);
+              const n2 = Math.sin(x * 0.15 + y * 0.12);
+              const n3 = Math.sin(x * 0.40) * Math.sin(y * 0.40);
+              const grain = (Math.random() - 0.5) * 16 + (n1 * 5 + n2 * 4 + n3 * 3);
+              d[idx] = Math.min(255, Math.max(0, d[idx] + grain));
+              d[idx + 1] = Math.min(255, Math.max(0, d[idx + 1] + grain * 0.94));
+              d[idx + 2] = Math.min(255, Math.max(0, d[idx + 2] + grain * 0.85));
+            }
+          }
+          ctx.putImageData(img, 0, 0);
+
+          // Vertical rainwater runoff streaks underneath horizontal projections & parapets
+          for (let i = 0; i < 44; i++) {
+            const sx = Math.random() * sz;
+            const sw = 2 + Math.random() * 4;
+            const len = sz * (0.20 + Math.random() * 0.55);
+            const grad = ctx.createLinearGradient(sx, 0, sx, len);
+            grad.addColorStop(0, 'rgba(64, 56, 46, 0.15)');
+            grad.addColorStop(0.65, 'rgba(64, 56, 46, 0.05)');
+            grad.addColorStop(1, 'rgba(64, 56, 46, 0.0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(sx, 0, sw, len);
+          }
+
+          // Localized hairline plaster cracks (branching clusters in stress zones)
+          ctx.strokeStyle = 'rgba(52, 45, 38, 0.28)';
+          ctx.lineWidth = 1.0;
+          for (let cluster = 0; cluster < 5; cluster++) {
+            let startX = (cluster * 200 + 70 + Math.random() * 60) % sz;
+            let startY = Math.random() * (sz * 0.7);
+            ctx.beginPath();
+            ctx.moveTo(startX, startY);
+            let curX = startX;
+            let curY = startY;
+            for (let seg = 0; seg < 6; seg++) {
+              curX += (Math.random() - 0.5) * 40;
+              curY += (Math.random() * 0.8 + 0.2) * 30;
+              ctx.lineTo(curX, curY);
+              if (Math.random() > 0.5) {
+                ctx.moveTo(curX, curY);
+                ctx.lineTo(curX + (Math.random() - 0.5) * 25, curY + Math.random() * 20);
+                ctx.moveTo(curX, curY);
+              }
+            }
+            ctx.stroke();
+          }
+
+          const tex = new THREE.CanvasTexture(cv);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(4, 4);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return tex;
+        };
+
+        // Procedural Granular Coating Texture for Round Columns
+        const createColumnGranularTexture = (): THREE.CanvasTexture => {
+          const sz = 256;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+          ctx.fillStyle = '#9A7358';
+          ctx.fillRect(0, 0, sz, sz);
+
+          const img = ctx.getImageData(0, 0, sz, sz);
+          const d = img.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const grain = (Math.random() - 0.5) * 32;
+            d[i] = Math.min(255, Math.max(0, d[i] + grain));
+            d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + grain * 0.86));
+            d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + grain * 0.76));
+          }
+          ctx.putImageData(img, 0, 0);
+
+          const tex = new THREE.CanvasTexture(cv);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(2, 6);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return tex;
+        };
+
+        // Procedural Stone-Clad Ramp Texture (irregular grey-blue natural stone pieces + dark grey grout)
+        const createStoneRampTexture = (): THREE.CanvasTexture => {
+          const sz = 512;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+          // Dark grey grout #222528
+          ctx.fillStyle = '#222528';
+          ctx.fillRect(0, 0, sz, sz);
+
+          const stones = ['#556470', '#3E4A54', '#687988', '#5C6166', '#4E5A65', '#606F7C'];
+          const cols = 6;
+          const rows = 6;
+          const cw = sz / cols;
+          const ch = sz / rows;
+
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const x = c * cw + 3;
+              const y = r * ch + 3;
+              const w = cw - 6;
+              const h = ch - 6;
+              ctx.fillStyle = stones[(r * 7 + c * 3) % stones.length];
+
+              ctx.beginPath();
+              ctx.moveTo(x + 5, y);
+              ctx.lineTo(x + w - 5, y + (Math.random() - 0.5) * 3);
+              ctx.lineTo(x + w, y + 5);
+              ctx.lineTo(x + w + (Math.random() - 0.5) * 3, y + h - 5);
+              ctx.lineTo(x + w - 5, y + h);
+              ctx.lineTo(x + 5, y + h + (Math.random() - 0.5) * 3);
+              ctx.lineTo(x, y + h - 5);
+              ctx.lineTo(x + (Math.random() - 0.5) * 3, y + 5);
+              ctx.closePath();
+              ctx.fill();
+            }
+          }
+
+          const tex = new THREE.CanvasTexture(cv);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(3, 3);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return tex;
+        };
+
+        // ------------------------------------------------------------------
+        // Procedural Photorealistic Institutional Door Texture
+        // Painted composite/metal institutional door: warm dusty peach
+        // Base colour approx #B98F7D – #C49A87, matte, slightly rough,
+        // with surface grain, edge scuffs, wear marks, and subtle paint variation.
+        // ------------------------------------------------------------------
+        const createDoorPeachTexture = (): THREE.CanvasTexture => {
+          const sz = 512;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+
+          // Base warm dusty peach
+          ctx.fillStyle = '#C49A87';
+          ctx.fillRect(0, 0, sz, sz);
+
+          // Subtle paint colour variation – patches of lighter ivory and deeper salmon
+          const patches = [
+            { x: 80, y: 100, r: 140, color: 'rgba(185,143,125,0.18)' },
+            { x: 380, y: 80, r: 110, color: 'rgba(155,110,90,0.12)' },
+            { x: 260, y: 370, r: 130, color: 'rgba(210,175,155,0.15)' },
+            { x: 60, y: 400, r: 80, color: 'rgba(140,100,82,0.10)' },
+            { x: 460, y: 280, r: 90, color: 'rgba(220,185,165,0.12)' },
+          ];
+          for (const p of patches) {
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+            g.addColorStop(0, p.color);
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, sz, sz);
+          }
+
+          // Fine surface grain (matte painted metal/composite)
+          const img = ctx.getImageData(0, 0, sz, sz);
+          const d = img.data;
+          for (let y = 0; y < sz; y++) {
+            for (let x = 0; x < sz; x++) {
+              const idx = (y * sz + x) * 4;
+              const grain = (Math.random() - 0.5) * 18;
+              d[idx]     = Math.min(255, Math.max(0, d[idx]     + grain));
+              d[idx + 1] = Math.min(255, Math.max(0, d[idx + 1] + grain * 0.88));
+              d[idx + 2] = Math.min(255, Math.max(0, d[idx + 2] + grain * 0.80));
+            }
+          }
+          ctx.putImageData(img, 0, 0);
+
+          // Horizontal low-contrast panel lines (institutional door panels)
+          ctx.strokeStyle = 'rgba(80, 54, 40, 0.12)';
+          ctx.lineWidth = 1.5;
+          for (const fy of [sz * 0.22, sz * 0.48, sz * 0.74]) {
+            ctx.beginPath(); ctx.moveTo(10, fy); ctx.lineTo(sz - 10, fy); ctx.stroke();
+          }
+
+          // Edge scuff / wear marks along perimeter
+          ctx.strokeStyle = 'rgba(60, 38, 28, 0.18)';
+          ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, sz); ctx.stroke(); // left
+          ctx.beginPath(); ctx.moveTo(sz, 0); ctx.lineTo(sz, sz); ctx.stroke(); // right
+          ctx.beginPath(); ctx.moveTo(0, sz); ctx.lineTo(sz, sz); ctx.stroke(); // bottom kick
+
+          // Subtle vertical dust streaks
+          for (let i = 0; i < 8; i++) {
+            const sx = 20 + Math.random() * (sz - 40);
+            const sw = 1 + Math.random() * 2;
+            const sl = sz * (0.3 + Math.random() * 0.5);
+            const sg = ctx.createLinearGradient(sx, 0, sx, sl);
+            sg.addColorStop(0, 'rgba(90,64,48,0.06)');
+            sg.addColorStop(1, 'rgba(90,64,48,0.0)');
+            ctx.fillStyle = sg;
+            ctx.fillRect(sx, 0, sw, sl);
+          }
+
+          const tex = new THREE.CanvasTexture(cv);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(1, 1);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return tex;
+        };
+
+        // Procedural Door Frame Peach Texture (slightly darker/richer than leaf)
+        const createDoorFrameTexture = (): THREE.CanvasTexture => {
+          const sz = 256;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+          ctx.fillStyle = '#A97A68'; // Slightly deeper dusty peach for frame
+          ctx.fillRect(0, 0, sz, sz);
+          const img = ctx.getImageData(0, 0, sz, sz);
+          const d = img.data;
+          for (let i = 0; i < d.length; i += 4) {
+            const g = (Math.random() - 0.5) * 20;
+            d[i]     = Math.min(255, Math.max(0, d[i]     + g));
+            d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + g * 0.85));
+            d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + g * 0.76));
+          }
+          ctx.putImageData(img, 0, 0);
+          const tex = new THREE.CanvasTexture(cv);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(2, 4);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          return tex;
+        };
+
+        const wallTexture      = createWallStuccoTexture();
+        const columnTexture    = createColumnGranularTexture();
+        const stoneRampTexture = createStoneRampTexture();
+        const doorPeachTexture = createDoorPeachTexture();
+        const doorFrameTexture = createDoorFrameTexture();
+
+        // Calibrated Reference Materials matching updated PCCRC Building specification
+        const matCream = new THREE.MeshStandardMaterial({
+          color: 0xffffff, // White multiplier so canvas texture #D8D0C2 base is accurately retained
+          roughness: 0.94,
+          metalness: 0.0,
+          map: wallTexture,
+          bumpMap: wallTexture,
+          bumpScale: 0.022
+        });
+        const matRecessedPeach = new THREE.MeshStandardMaterial({
+          color: 0xA98A72,
+          roughness: 0.88,
+          metalness: 0.02
+        });
+        const matColumn = new THREE.MeshStandardMaterial({
+          color: 0xffffff, // White multiplier so column canvas texture #9A7358 is accurately retained
+          roughness: 0.92,
+          metalness: 0.0,
+          map: columnTexture,
+          bumpMap: columnTexture,
+          bumpScale: 0.038
+        });
+        const matParapetBand = new THREE.MeshStandardMaterial({
+          color: 0x8C7F70,
+          roughness: 0.88,
+          metalness: 0.02
+        });
+        const matStoneTread = new THREE.MeshStandardMaterial({
+          color: 0xb5aca0, // Weathered cream stair stone
+          roughness: 0.84,
+          metalness: 0.02
+        });
+        const matTerracotta = new THREE.MeshStandardMaterial({
+          color: 0x783c30, // Aged terracotta red stair stone
+          roughness: 0.88,
+          metalness: 0.02
+        });
+        // ── Photorealistic Peach Institutional Door Leaf ─────────────────────
+        // Warm dusty peach painted composite door panel. Matte, slightly rough
+        // surface with paint ageing, grain, edge scuffs and subtle colour variation.
+        const matDoorLeaf = new THREE.MeshStandardMaterial({
+          color: 0xffffff,          // white multiplier — true colour lives in texture
+          roughness: 0.86,          // matte institutional painted door
+          metalness: 0.04,          // minimal metal hint (composite/painted steel)
+          map: doorPeachTexture,
+          bumpMap: doorPeachTexture,
+          bumpScale: 0.015
+        });
+
+        // ── Door Frame / Architrave / Reveal ─────────────────────────────────
+        // Thick peach-toned door frame, same family as leaf but richer and rougher
+        const matDoorFrame = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.90,
+          metalness: 0.02,
+          map: doorFrameTexture,
+          bumpMap: doorFrameTexture,
+          bumpScale: 0.022
+        });
+
+        // ── Door Vision Glass ─────────────────────────────────────────────────
+        // Small inset vision windows in the door — dark semi-transparent with slight tint
+        const matDoorGlass = new THREE.MeshStandardMaterial({
+          color: 0x162028,
+          roughness: 0.08,
+          metalness: 0.70,
+          transparent: true,
+          opacity: 0.82,
+          envMapIntensity: 1.8
+        });
+
+        // ── Door Hardware (handles, hydraulic closers, push plate, latch) ─────
+        // Brushed stainless handles and closer arms — aged/matte brushed metal
+        const matDoorHardware = new THREE.MeshStandardMaterial({
+          color: 0x7a7f82,
+          roughness: 0.38,
+          metalness: 0.78
+        });
+
+        // ── Room Number Placard (white sign plate on door face) ───────────────
+        // Bright off-white plate — high contrast so text is readable
+        const matPushPlate = new THREE.MeshStandardMaterial({
+          color: 0xf5f0e8,   // Bright off-white / very light ivory
+          roughness: 0.60,
+          metalness: 0.04
+        });
+
+        // ── Room Number Text Block (dark embossed text on placard) ────────────
+        // Near-black so room numbers contrast sharply against the white plate
+        const matPlacardText = new THREE.MeshStandardMaterial({
+          color: 0x0a0a0a,   // Near-black text
+          roughness: 0.70,
+          metalness: 0.02
+        });
+
+        // Legacy alias (kept so any unreachable branch still compiles)
+        const matWoodBeech = matDoorLeaf;
+        const matStainless = new THREE.MeshStandardMaterial({
+          color: 0x606468, // Aged silver/grey railing
+          roughness: 0.52,
+          metalness: 0.68
+        });
+        const matGlass = new THREE.MeshStandardMaterial({
+          color: 0x08101a, // Dark blue-charcoal glass reflecting bright sky
+          roughness: 0.03, // Ultra-slick polished glass
+          metalness: 0.85, // High specular mirror reflectance of sky
+          envMapIntensity: 2.4
+        });
+        const matWindowGrill = new THREE.MeshStandardMaterial({
+          color: 0x585c60,
+          roughness: 0.54,
+          metalness: 0.75
+        });
+        const matStoneRamp = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          map: stoneRampTexture,
+          bumpMap: stoneRampTexture,
+          bumpScale: 0.04,
+          roughness: 0.84,
+          metalness: 0.02
+        });
+        const matFireRed = new THREE.MeshStandardMaterial({
+          color: 0xdc2626,
+          roughness: 0.3,
+          metalness: 0.1
+        });
+        const matGranite = new THREE.MeshStandardMaterial({
+          color: 0x27272a,
+          roughness: 0.4,
+          metalness: 0.1
+        });
+        const matWindowFrame = new THREE.MeshStandardMaterial({
+          color: 0x222528, // Aged dark bronze/charcoal aluminum frame
+          roughness: 0.62,
+          metalness: 0.72
+        });
+        const matPlinth = new THREE.MeshStandardMaterial({
+          color: 0x544f48, // Dark moisture-stained, chipped concrete
+          roughness: 0.96,
+          metalness: 0.02
+        });
 
         const toRemove: THREE.Object3D[] = [];
 
@@ -861,7 +1259,11 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             ln.includes('atrium polished') ||
             ln.includes('burgundy planter') ||
             ln.includes('sparse low planting') ||
-            ln.includes('planting');
+            ln.includes('planting') ||
+            ln.includes('circular raised stone') ||
+            ln.includes('central circular concrete platform') ||
+            ln.includes('circular edging mortar seam') ||
+            ln.includes('circular bed soil');
 
           if (isLegacyGroundOrPlanter) {
             child.visible = false;
@@ -877,15 +1279,19 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             m.receiveShadow = true;
             const yPos = m.position.y;
 
-            // Accurate Color Assignment (Ensure windows on left and right sides use glass & frame)
+            // Accurate Color & Material Assignment matching front_reconstruction.png
             if (ln.includes('glass')) {
               m.material = matGlass;
+            } else if (
+              ln.includes('security grille') || 
+              ln.includes('grille crossbar') ||
+              ln.includes('rectangular grille')
+            ) {
+              m.material = matWindowGrill;
             } else if (
               ln.includes('mullion') || 
               ln.includes('transom') || 
               ln.includes('window frame') || 
-              ln.includes('security grille') || 
-              ln.includes('grille crossbar') ||
               ln.includes('perimeter seal') ||
               ln.includes('window latch') ||
               ln.includes('bay latch') ||
@@ -894,31 +1300,98 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             ) {
               m.material = matWindowFrame;
             } else if (
-              ln.includes('spandrel') || 
-              ln.includes('bay sill') || 
-              ln.includes('bay header') || 
-              ln.includes('bay raised jamb')
+              ln.includes('cylindrical column') ||
+              ln.includes('paired small columns') ||
+              ln.includes('tall bay column') ||
+              ln.includes('monumental central column') ||
+              (name.includes('column') && !name.includes('square') && !name.includes('pier') && !name.includes('rectangular'))
             ) {
-              m.material = matCream;
-            } else if (name.includes('Peach') || name.includes('pediment') || name.includes('column') || name.includes('pier') || name.includes('balustrade') || name.includes('arch reveal') || name.includes('reveal rim')) {
-              m.material = matPeach;
+              m.material = matColumn;
+            } else if (
+              name.includes('Peach') || 
+              name.includes('pediment') || 
+              name.includes('arch reveal') || 
+              name.includes('reveal rim') ||
+              name.includes('arched opening spandrel') ||
+              name.includes('lower façade')
+            ) {
+              m.material = matRecessedPeach;
+            } else if (
+              name.includes('coping') ||
+              name.includes('moulded cornice') ||
+              ln.includes('parapet coping')
+            ) {
+              m.material = matParapetBand;
+            } else if (
+              name.includes('ramp') ||
+              name.includes('access ramp') ||
+              ln.includes('access ramp')
+            ) {
+              m.material = matStoneRamp;
             } else if (name.includes('riser') || name.includes('Wide entrance stair riser')) {
               m.material = matTerracotta;
             } else if (name.includes('tread') || name.includes('stair tread') || name.includes('nosing') || name.includes('Cream worn stair nosing')) {
               m.material = matStoneTread;
-            } else if (name.includes('Door_') || name.includes('Portal_') || name.includes('leaf')) {
-              m.material = matWoodBeech;
-            } else if (name.includes('Handle_') || name.includes('Closer_') || name.includes('Slide_Bolt') || name.includes('Padlock') || name.includes('railing')) {
-              m.material = matStainless;
+            } else if (name.includes('pier plinth') || name.includes('foundation') || name.includes('ground structural slab')) {
+              m.material = matPlinth;
+            } else if (
+              // Vision / sidelite glass inserts in the door leaf
+              name.includes('Vision_Glass') ||
+              name.includes('Sidelite_Glass') ||
+              name.includes('Door_Glass')
+            ) {
+              m.material = matDoorGlass;
+            } else if (
+              // Door leaves (main panel)
+              name.includes('Door_Left') ||
+              name.includes('Door_Right') ||
+              name.includes('Door_Leaf') ||
+              name.includes('Portal_') ||
+              (name.includes('Door_') && !name.includes('Frame') && !name.includes('Jamb') && !name.includes('Head') && !name.includes('Sill'))
+            ) {
+              m.material = matDoorLeaf;
+            } else if (
+              // Door frame, jamb, head, threshold, architrave, reveal
+              name.includes('Door_Frame') ||
+              name.includes('Door_Jamb') ||
+              name.includes('Door_Head') ||
+              name.includes('Door_Sill') ||
+              name.includes('Door_Thresh') ||
+              name.includes('Architrave') ||
+              name.includes('Door_Reveal')
+            ) {
+              m.material = matDoorFrame;
+            } else if (
+              // Room number text on placard — MUST be assigned before generic Placard match
+              name.includes('Placard_Text')
+            ) {
+              m.material = matPlacardText;
+            } else if (
+              // PUSH/PULL sign plate, door placard plate
+              name.includes('Push_Plate') ||
+              name.includes('Pull_Plate') ||
+              name.includes('Placard_Plate') ||
+              name.includes('Placard') ||
+              name.includes('Door_Sign')
+            ) {
+              m.material = matPushPlate;
+            } else if (
+              // Hydraulic closers, handles, latches, bolts, padlocks
+              name.includes('Handle_') ||
+              name.includes('Closer_') ||
+              name.includes('Door_Handle') ||
+              name.includes('Door_Closer') ||
+              name.includes('Slide_Bolt') ||
+              name.includes('Padlock') ||
+              name.includes('railing')
+            ) {
+              m.material = matDoorHardware;
             } else if (name.includes('Fire_Alarm')) {
               m.material = matFireRed;
-            } else if (name.includes('Skirting') || name.includes('concrete platform') || name.includes('landscape edging') || name.includes('mortar seam')) {
+            } else if (name.includes('Skirting')) {
               m.material = matGranite;
-            } else if (name.includes('bed soil')) {
-              m.material = new THREE.MeshStandardMaterial({ color: 0x3a3028, roughness: 0.95 });
-            } else if (name.includes('planting')) {
-              m.material = new THREE.MeshStandardMaterial({ color: 0x48644e, roughness: 0.8 });
-            } else if (name.includes('wall') || name.includes('Facade') || name.includes('Wing') || name.includes('coping')) {
+            } else {
+              // Main exterior walls, square portico piers, canopies, solid parapets, spandrels
               m.material = matCream;
             }
 
@@ -942,6 +1415,9 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
               name
             });
 
+            // All GLB meshes start HIDDEN — the construction sequence reveals them
+            // progressively. Setting visible=true here caused the 5-6 second
+            // full-building flash before executeConstructionSequence ran.
             m.visible = false;
           }
         });
@@ -1045,8 +1521,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     const lookPoints: THREE.Vector3[] = [];
 
     // WP 0: Front exterior plaza (matches exactly where circular orbit completed: NO CUT!)
-    posPoints.push(new THREE.Vector3(0, 3.4, 32.0));
-    lookPoints.push(new THREE.Vector3(0, 2.4, 4.0));
+    posPoints.push(new THREE.Vector3(3.4, 1.65, 33.0));
+    lookPoints.push(new THREE.Vector3(0, 11.45, -0.2));
 
     // WP 1: Between front portico columns
     posPoints.push(new THREE.Vector3(0, 2.8, 16.0));
@@ -1506,6 +1982,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     // buildingGroundMesh removed
     frontPillarsRef.current.forEach(p => { p.visible = false; });
     pottedPlantsRef.current.forEach(p => { p.visible = false; });
+    if (doorVolumeMarkerRef.current) doorVolumeMarkerRef.current.visible = false;
+    setProximityRoom(null);
 
     setAnimStage('empty');
     setBuildPercent(0);
@@ -1531,6 +2009,10 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             atriumFloorMeshRef.current.visible = true;
             const scale = Math.min(tileP * 1.08, 1.0);
             atriumFloorMeshRef.current.scale.set(scale, scale, scale);
+          }
+          // Reveal ground plane together with the floor tiles
+          if (groundMeshRef.current) {
+            groundMeshRef.current.visible = true;
           }
           if (tileWaveRingRef.current) {
             tileWaveRingRef.current.visible = true;
@@ -1623,6 +2105,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             item.mesh.scale.set(1, 1, 1);
           });
           pottedPlantsRef.current.forEach(p => { p.visible = true; });
+          if (groundMeshRef.current) groundMeshRef.current.visible = true;
+          if (atriumFloorMeshRef.current) atriumFloorMeshRef.current.visible = true;
         }
 
         // Camera Motion: High-speed 360-degree circle orbit during construction, then stop smoothly at front
@@ -1639,10 +2123,10 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           // When construction completes, stop smoothly at the front entrance
           const decelP = (progress - 0.88) / 0.12;
           const smoothP = decelP * decelP * (3 - 2 * decelP); // smoothstep
-          const endOrbitPos = new THREE.Vector3(0, 15, 44);
-          const frontStopPos = new THREE.Vector3(0, 3.4, 32.0);
-          const endOrbitLook = new THREE.Vector3(0, 13, -6);
-          const frontStopLook = new THREE.Vector3(0, 2.4, 4.0);
+          const endOrbitPos = new THREE.Vector3(3.4, 6.0, 38.0);
+          const frontStopPos = new THREE.Vector3(3.4, 1.65, 33.0);
+          const endOrbitLook = new THREE.Vector3(0, 9.0, -2.0);
+          const frontStopLook = new THREE.Vector3(0, 11.45, -0.2);
           camera.position.lerpVectors(endOrbitPos, frontStopPos, smoothP);
           camera.lookAt(new THREE.Vector3().lerpVectors(endOrbitLook, frontStopLook, smoothP));
         }
@@ -1668,15 +2152,15 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           if (onConstructionComplete) onConstructionComplete();
 
           // CONTINUOUS MASTER JOURNEY: Without frame cut, move inside and navigate realistic path to room
-          executeContinuousIndoorPath(targetRoomNumber);
+          executeContinuousIndoorPath(targetRoomRef.current);
         }
       };
 
       requestAnimationFrame(animateBuild);
     }, 1500);
-  }, [onConstructionComplete, targetRoomNumber, executeContinuousIndoorPath]);
+  }, [onConstructionComplete, executeContinuousIndoorPath]);
 
-  // Trigger one-time construction once model is fully loaded and active
+  // When model is loaded and viewer becomes active, trigger the full 14s construction and room approach
   useEffect(() => {
     if (isActive && isModelLoaded && !hasConstructedRef.current) {
       hasConstructedRef.current = true;
@@ -1684,9 +2168,28 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     }
   }, [isActive, isModelLoaded, executeConstructionSequence]);
 
+  // Expose global controller for room zoom, BIM reconstruction replay, or view reset
   useEffect(() => {
-    if (animStage === 'at_room' || animStage === 'free_orbit') {
-      zoomToRoom(targetRoomNumber);
+    (window as any).__twinViewer = {
+      zoomToRoom,
+      executeConstructionSequence,
+      resetToFrontView: () => {
+        if (!cameraRef.current || !controlsRef.current) return;
+        cameraRef.current.position.set(3.4, 1.80, 36.5);
+        cameraRef.current.lookAt(0.174, 11.20, 1.50);
+        controlsRef.current.target.set(0.174, 11.20, 1.50);
+        controlsRef.current.update();
+        setAnimStage('idle');
+      }
+    };
+  }, [zoomToRoom, executeConstructionSequence]);
+
+  useEffect(() => {
+    if (prevTargetRoomRef.current !== targetRoomNumber) {
+      prevTargetRoomRef.current = targetRoomNumber;
+      if (animStage === 'at_room' || animStage === 'free_orbit') {
+        zoomToRoom(targetRoomNumber);
+      }
     }
   }, [targetRoomNumber, zoomToRoom, animStage]);
 
@@ -1848,75 +2351,74 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           position: 'absolute',
           left: `${proximityRoom.screenPos.x}px`,
           top: `${proximityRoom.screenPos.y}px`,
-          transform: 'translate(-50%, -50%)', // Centered directly on door mid!
+          transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
           zIndex: 35,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '4px',
-          animation: 'fadeInScale 0.2s ease-out'
+          gap: '8px',
+          animation: 'fadeInScale 0.25s ease-out'
         }}>
-          {/* Target Central Crosshair Marker on Door Mid */}
+          {/* Glowing Crosshair ring */}
           <div style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            border: '2px solid #38bdf8',
-            backgroundColor: 'rgba(56, 189, 248, 0.25)',
-            boxShadow: '0 0 12px #38bdf8',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
+            width: '32px', height: '32px', borderRadius: '50%',
+            border: '2.5px solid #00eeff',
+            backgroundColor: 'rgba(0,238,255,0.12)',
+            boxShadow: '0 0 18px #00eeff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: 'pulseRing 1.6s ease-in-out infinite'
           }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#38bdf8' }} />
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00eeff', boxShadow: '0 0 8px #00eeff' }} />
           </div>
 
-          {/* Authoritative Mid-Door Volumetric & GNSS Tag */}
+          {/* Connector pip */}
+          <div style={{ width: '2px', height: '8px', backgroundColor: '#00eeff', opacity: 0.7, borderRadius: '1px' }} />
+
+          {/* High-Contrast Info Panel */}
           <div style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.94)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid #38bdf8',
-            borderRadius: '8px',
-            padding: '7px 12px',
-            boxShadow: '0 4px 18px rgba(0,0,0,0.5)',
+            backgroundColor: 'rgba(5, 10, 22, 0.97)',
+            backdropFilter: 'blur(14px)',
+            border: '1.5px solid #00eeff',
+            borderRadius: '10px',
+            padding: '9px 15px',
+            boxShadow: '0 0 24px rgba(0,238,255,0.35), 0 6px 24px rgba(0,0,0,0.8)',
             color: '#ffffff',
             textAlign: 'center',
             whiteSpace: 'nowrap'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '13px', fontWeight: 800, color: '#38bdf8', fontFamily: 'monospace' }}>
-                ROOM {proximityRoom.record.roomCode}
-              </span>
-              <span style={{ fontSize: '10px', backgroundColor: 'rgba(56, 189, 248, 0.2)', color: '#34d399', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+            {/* Room number — large and unmissable */}
+            <div style={{ fontSize: '15px', fontWeight: 900, fontFamily: 'monospace', letterSpacing: '0.08em', textShadow: '0 0 10px rgba(0,238,255,0.6)' }}>
+              ROOM <span style={{ color: '#00eeff' }}>{proximityRoom.record.roomCode}</span>
+            </div>
+            {/* Badges row */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '5px' }}>
+              <span style={{ fontSize: '10px', backgroundColor: 'rgba(0,238,255,0.15)', color: '#00eeff', padding: '2px 7px', borderRadius: '4px', fontWeight: 700, fontFamily: 'monospace', border: '1px solid rgba(0,238,255,0.4)' }}>
                 VOL: {proximityRoom.record.doorVolume.volumeM3} m³
               </span>
+              <span style={{ fontSize: '10px', backgroundColor: 'rgba(52,211,153,0.15)', color: '#34d399', padding: '2px 7px', borderRadius: '4px', fontWeight: 700, fontFamily: 'monospace', border: '1px solid rgba(52,211,153,0.4)' }}>
+                F{proximityRoom.record.floorNumber}
+              </span>
             </div>
-            <div style={{ fontSize: '10px', color: '#a7f3d0', fontFamily: 'monospace', marginTop: '2px' }}>
-              CENTER CLOUD: [{proximityRoom.record.centerCloud.x}, {proximityRoom.record.centerCloud.y}, {proximityRoom.record.centerCloud.z}]
+            {/* Coords */}
+            <div style={{ fontSize: '9px', color: '#94d8e8', fontFamily: 'monospace', marginTop: '4px', opacity: 0.85 }}>
+              [{proximityRoom.record.centerCloud.x}, {proximityRoom.record.centerCloud.y}, {proximityRoom.record.centerCloud.z}]
             </div>
-            <div style={{ fontSize: '9.5px', color: '#cbd5e1', marginTop: '1px' }}>
-              FLOOR SEG: {proximityRoom.record.floorSegmentation.startDownY.toFixed(1)}m ↓ → {proximityRoom.record.floorSegmentation.endUpY.toFixed(1)}m ↑ ({proximityRoom.record.floorSegmentation.heightM.toFixed(1)}m H)
-            </div>
-            <div style={{ fontSize: '9px', color: '#94a3b8', marginTop: '1px' }}>
-              ELEV: {proximityRoom.record.centerCloud.elevationMsl}m MSL • Safe Dist: {proximityRoom.record.centerCloud.safeDistanceM}m
+            <div style={{ fontSize: '8.5px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>
+              {proximityRoom.record.centerCloud.elevationMsl}m MSL
             </div>
           </div>
         </div>
       )}
 
-
-
       <style>{`
         @keyframes fadeInScale {
-          from {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.85);
-          }
-          to {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-          }
+          from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+          to   { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+        }
+        @keyframes pulseRing {
+          0%, 100% { box-shadow: 0 0 10px #00eeff; }
+          50%       { box-shadow: 0 0 28px #00eeff, 0 0 10px #00eeff inset; }
         }
       `}</style>
     </div>

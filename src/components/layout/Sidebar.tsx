@@ -51,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed = false }) => {
 
   const isUserMgmtActive = location.pathname.includes('/user-management');
   const isSurveyActActive = location.pathname.includes('/survey-activities') || (isSurveyorMode && (
+    location.pathname.includes('/data-extraction') ||
     location.pathname.includes('/map-image-verification') ||
     location.pathname.includes('/gt-points') ||
     location.pathname.includes('/merge-split') ||
@@ -214,6 +215,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed = false }) => {
 
               {surveyorActOpen && !collapsed && (
                 <div style={{ backgroundColor: 'rgba(0, 0, 0, 0.12)', padding: '4px 0', margin: '2px 8px', borderRadius: '6px' }}>
+                  <NavLink
+                    to="/surveyor/data-extraction"
+                    style={({ isActive }) => ({
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '7px 16px 7px 36px',
+                      color: isActive ? '#1976d2' : '#ffffff',
+                      backgroundColor: isActive ? '#ffffff' : 'transparent',
+                      borderRadius: '4px',
+                      textDecoration: 'none',
+                      fontSize: '12.5px',
+                      fontWeight: isActive ? 700 : 600
+                    })}
+                  >
+                    <span>Data Extraction</span>
+                    <span style={{ fontSize: '9px', backgroundColor: '#10b981', color: '#ffffff', padding: '1px 5px', borderRadius: '4px', fontWeight: 800 }}>3D</span>
+                  </NavLink>
                   <NavLink
                     to="/surveyor/map-image-verification"
                     style={({ isActive }) => ({

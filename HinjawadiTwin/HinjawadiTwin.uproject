@@ -1,0 +1,23 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.4",
+  "Category": "GIS",
+  "Description": "OSM-derived Hinjawadi city reconstruction with preserved provenance",
+  "Modules": [
+    {
+      "Name": "HinjawadiTwin",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "PythonScriptPlugin",
+      "Enabled": true
+    },
+    {
+      "Name": "EditorScriptingUtilities",
+      "Enabled": true
+    }
+  ]
+}

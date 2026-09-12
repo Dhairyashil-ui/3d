@@ -86,12 +86,12 @@ export const DesktopAppPage: React.FC = () => {
   const [selectedState, setSelectedState] = useState('Maharashtra');
 
   // Screen 2: Login
-  const [username, setUsername] = useState('soi_operator_01');
+  const [username, setUsername] = useState('aman.pokale.soi@gov.in');
   const [password, setPassword] = useState('••••••••');
   const [isGuestMode, setIsGuestMode] = useState(false);
 
-  // Screen 3: Workstation Workspace State
-  const [activeSection, setActiveSection] = useState<string>('dashboard');
+  // Screen 3: Workstation Workspace State (Default to 1. ORI / Raster Data .TPK Upload)
+  const [activeSection, setActiveSection] = useState<string>('data-tpk');
   const [projects, setProjects] = useState<SurveyProject[]>(MOCK_PROJECTS);
   const [selectedProject, setSelectedProject] = useState<SurveyProject>(projects[0]);
 
@@ -179,11 +179,12 @@ export const DesktopAppPage: React.FC = () => {
         overflow: 'hidden',
         border: isFullscreen ? 'none' : '1px solid #334155'
       }}>
-        {/* Windows 11 / Desktop Title Bar */}
-        <div style={{
-          backgroundColor: '#0f2b5c',
-          color: '#ffffff',
-          height: '34px',
+        {/* Windows 11 / Desktop Title Bar (Hidden on workspace to show authentic Naksha window frame) */}
+        {currentScreen !== 'workspace' && (
+          <div style={{
+            backgroundColor: '#0f2b5c',
+            color: '#ffffff',
+            height: '34px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -229,6 +230,7 @@ export const DesktopAppPage: React.FC = () => {
             </button>
           </div>
         </div>
+        )}
 
         {/* ------------------------------------------------------------- */}
         {/* SCREEN 1: STEP 2 - SELECT STATE SCREEN (Approved Manual Page 5) */}
@@ -611,9 +613,19 @@ export const DesktopAppPage: React.FC = () => {
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* SCREEN 3: WORKSPACE - NAKSHA V2.0 3D AERIAL SURVEY WORKSTATION */}
+        {/* SCREEN 3: WORKSPACE - NAKSHA OFFICIAL DESKTOP WORKSTATION     */}
         {/* ------------------------------------------------------------- */}
         {currentScreen === 'workspace' && (
+          <DataPreparationSection
+            selectedState={selectedState}
+            username={username}
+            isGuestMode={isGuestMode}
+            onLogout={() => setCurrentScreen('login')}
+            project={selectedProject}
+          />
+        )}
+
+        {false && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', overflow: 'hidden' }}>
             {/* Top Workspace Bar */}
             <div style={{
@@ -710,12 +722,14 @@ export const DesktopAppPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Global 9-Stage Progress Pipeline Bar */}
-            <ProjectProgressBar
-              project={selectedProject}
-              activeSection={activeSection}
-              onNavigateSection={(sec) => setActiveSection(sec)}
-            />
+            {/* Global 9-Stage Progress Pipeline Bar (Hidden on data upload & validation pages for clean functional UI) */}
+            {activeSection !== 'data-tpk' && activeSection !== 'data-gdb' && activeSection !== 'data-3d-evidence' && activeSection !== 'data-preparation' && (
+              <ProjectProgressBar
+                project={selectedProject}
+                activeSection={activeSection}
+                onNavigateSection={(sec) => setActiveSection(sec)}
+              />
+            )}
 
             {/* Split Layout: Left Sidebar + Right Dynamic Section Outlet */}
             <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -796,17 +810,15 @@ export const DesktopAppPage: React.FC = () => {
                   />
                 )}
 
-                {/* 7. Data Ingestion & Validation (Retains and expands GDB & TPK) */}
-                {(activeSection === 'data-preparation' ||
+                {/* Data Ingestion & Validation (TPK, GDB, 3D Evidence Package) */}
+                {(activeSection === 'data-tpk' ||
                   activeSection === 'data-gdb' ||
-                  activeSection === 'data-tpk' ||
+                  activeSection === 'data-3d-evidence' ||
+                  activeSection === 'data-preparation' ||
                   activeSection === 'data-lidar' ||
                   activeSection === 'data-architecture') && (
                   <DataPreparationSection
-                    project={selectedProject}
-                    defaultTab={activeSection === 'data-gdb' ? 'gdb' : activeSection === 'data-tpk' ? 'tpk' : activeSection === 'data-lidar' ? 'lidar' : activeSection === 'data-architecture' ? 'architecture' : 'all'}
-                    onNavigateSection={(sec) => setActiveSection(sec)}
-                    onPreviewMap={() => setShowMapPreview(true)}
+                    project={selectedProject as any}
                     isGuestMode={isGuestMode}
                   />
                 )}
