@@ -97,7 +97,7 @@ export interface TimelineState {
 let state: TimelineState = {
     time: 0,
     playing: true,
-    rate: 1,
+    rate: 5,
     camera: "cinematic",
     isFastForwarding: false,
     fastForwardRate: 10,
@@ -105,7 +105,7 @@ let state: TimelineState = {
 };
 
 let targetSeekTime: number | null = null;
-let returnToRate = 1;
+let returnToRate = 5;
 let wasPlayingBeforeSeek = true;
 
 let snapshot = { ...state };
@@ -199,7 +199,7 @@ export const transport = {
 
     restart() {
         targetSeekTime = null;
-        update({ time: 0, playing: true, rate: 1, camera: "cinematic", isFastForwarding: false, targetTime: null });
+        update({ time: 0, playing: true, rate: 5, camera: "cinematic", isFastForwarding: false, targetTime: null });
     },
 
     rate(rate: number) {

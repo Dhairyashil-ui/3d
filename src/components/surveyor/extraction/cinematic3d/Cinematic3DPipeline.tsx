@@ -445,6 +445,15 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
                                 1×
                             </button>
 
+                            <button
+                                className={rate === 5 && !timeline.isFastForwarding ? "selected" : ""}
+                                onClick={() => transport.rate(5)}
+                                aria-pressed={rate === 5}
+                                title="5× Fast Forward Playback"
+                            >
+                                5×
+                            </button>
+
                             <span className="control-divider" />
 
                             <button
