@@ -1030,3 +1030,30 @@
     50% { transform: translateX(3px); }
 }
 
+/* Clean Video View: Suppress text overlays & in-canvas 3D text tags */
+.world-label,
+.image-tag,
+.dimension-label,
+.drone-label,
+.gcp-tag,
+.axis-tag,
+.stage-caption,
+.scene-coordinate,
+.intro-titles,
+.introduction {
+    display: none !important;
+}
+
+.experience .video-masthead {
+    pointer-events: auto;
+}
+
+.experience .transport-row button.ff-active {
+    background: rgba(16, 185, 129, 0.25) !important;
+    color: #6ee7b7 !important;
+    border-color: #34d399 !important;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.4);
+    border-radius: 4px;
+    padding: 4px 8px !important;
+}
+

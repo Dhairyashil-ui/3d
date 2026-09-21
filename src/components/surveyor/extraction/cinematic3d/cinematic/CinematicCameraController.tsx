@@ -142,7 +142,8 @@ export default function CinematicCameraController() {
             initialized.current = true;
         }
 
-        const damping = 1 - Math.exp(-delta * 0.9);
+        const responsiveness = state.isFastForwarding ? 4.5 : 0.9;
+        const damping = 1 - Math.exp(-delta * responsiveness);
         camera.position.lerp(position, damping);
         look.current.lerp(target, damping);
         camera.lookAt(look.current);

@@ -15,42 +15,42 @@ export interface Stage {
 }
 
 const definitions: StageDefinition[] = [
-    ["establish", "Survey area", 45, "site location", "Building selected for survey", 0],
-    ["arrival", "Survey drone arrival", 35, "Flight plan", "Lidar sensors", 0],
-    ["init", "LiDAR initialization", 25, "Sensor calibration", "System ready", 0],
-    ["tof", "Laser range acquisition", 55, "Laser return timing", "Range = c × Δt / 2", 0],
-    ["xyz", "Range + angle → XYZ", 35, "Range · azimuth · elevation", "Local sensor points", 0],
-    ["trajectory", "GNSS / INS trajectory", 45, "GNSS position + IMU orientation", "Timestamped sensor poses", 0],
-    ["sync", "Timestamp synchronization", 30, "Point timestamp + interpolated pose", "World-frame transform", 0],
-    ["geo", "World coordinate transformation", 30, "Local XYZ + trajectory + boresight", "Georeferenced XYZ", 0],
-    ["gcp", "Survey control / validation", 35, "Known control and check positions", "Residual vectors", 0],
-    ["lidar", "Progressive LiDAR acquisition", 55, "Georeferenced returns", "Dense LiDAR cloud", 0],
+    ["establish", "Survey area", 23, "site location", "Building selected for survey", 0],
+    ["arrival", "Survey drone arrival", 18, "Flight plan", "Lidar sensors", 0],
+    ["init", "LiDAR initialization", 13, "Sensor calibration", "System ready", 0],
+    ["tof", "Laser range acquisition", 28, "Laser return timing", "Range = c × Δt / 2", 0],
+    ["xyz", "Range + angle → XYZ", 18, "Range · azimuth · elevation", "Local sensor points", 0],
+    ["trajectory", "GNSS / INS trajectory", 23, "GNSS position + IMU orientation", "Timestamped sensor poses", 0],
+    ["sync", "Timestamp synchronization", 15, "Point timestamp + interpolated pose", "World-frame transform", 0],
+    ["geo", "World coordinate transformation", 15, "Local XYZ + trajectory + boresight", "Georeferenced XYZ", 0],
+    ["gcp", "Survey control / validation", 18, "Known control and check positions", "Residual vectors", 0],
+    ["lidar", "Progressive LiDAR acquisition", 28, "Georeferenced returns", "Dense LiDAR cloud", 0],
 
-    ["capture", "Overlapping image acquisition", 40, "Calibrated drone camera", "Overlapping observations", 1],
-    ["matching", "Common feature matching", 35, "Repeated image features", "Cross-image correspondences", 1],
-    ["sfm", "Camera pose estimation", 35, "Feature tracks + camera intrinsics", "Poses + sparse structure", 1],
-    ["triangulation", "Multi-view triangulation", 40, "Camera poses + viewing rays", "Intersected 3D features", 1],
-    ["mvs", "Multi-view stereo", 45, "Images + reconstructed poses", "Dense photogrammetry cloud", 1],
+    ["capture", "Overlapping image acquisition", 21, "Calibrated drone camera", "Overlapping observations", 1],
+    ["matching", "Common feature matching", 18, "Repeated image features", "Cross-image correspondences", 1],
+    ["sfm", "Camera pose estimation", 18, "Feature tracks + camera intrinsics", "Poses + sparse structure", 1],
+    ["triangulation", "Multi-view triangulation", 21, "Camera poses + viewing rays", "Intersected 3D features", 1],
+    ["mvs", "Multi-view stereo", 23, "Images + reconstructed poses", "Dense photogrammetry cloud", 1],
 
-    ["separate", "Two independent datasets", 25, "LiDAR + photogrammetry", "Separate coordinate frames", 2],
-    ["registration", "Cloud registration", 45, "Initial transform + correspondences", "Refined spatial alignment", 2],
-    ["xyzmatch", "Coordinate correspondence", 25, "Aligned surface neighborhoods", "X ≈ X′ · Y ≈ Y′ · Z ≈ Z′", 2],
-    ["projection", "Camera → pixel → RGB", 40, "3D point + camera calibration", "Projected image color", 2],
-    ["fused", "Fused spatial appearance", 25, "Aligned geometry + imagery", "XYZ + RGB", 2],
-    ["clean", "Outlier removal", 25, "Fused cloud + neighborhood support", "Clean point cloud", 2],
+    ["separate", "Two independent datasets", 13, "LiDAR + photogrammetry", "Separate coordinate frames", 2],
+    ["registration", "Cloud registration", 23, "Initial transform + correspondences", "Refined spatial alignment", 2],
+    ["xyzmatch", "Coordinate correspondence", 13, "Aligned surface neighborhoods", "X ≈ X′ · Y ≈ Y′ · Z ≈ Z′", 2],
+    ["projection", "Camera → pixel → RGB", 21, "3D point + camera calibration", "Projected image color", 2],
+    ["fused", "Fused spatial appearance", 13, "Aligned geometry + imagery", "XYZ + RGB", 2],
+    ["clean", "Outlier removal", 13, "Fused cloud + neighborhood support", "Clean point cloud", 2],
 
-    ["normals", "Local surface analysis", 30, "Point neighborhoods", "Normals + surface structure", 3],
-    ["geometry", "Geometric region extraction", 35, "Normals + connectivity + geometry", "Planes + openings + structure", 3],
-    ["semantic", "3D semantic segmentation", 40, "Geometry + RGB + features + context", "Semantic point masks", 3],
-    ["instance", "Instance segmentation", 30, "Class masks + object separation", "Unique object IDs", 3],
-    ["door", "Door #127 extraction", 25, "Instance point mask", "3D bounds", 3],
-    ["measure", "Boundary-based measurement", 35, "Object XYZ point set", "Width · height · depth", 3],
-    ["other", "Structured object measurement", 40, "Windows · AC · floors · walls · roof", "Dimensions + areas + elevations", 3],
-    ["relationships", "Spatial object relationships", 25, "Objects + host surfaces", "Structured building hierarchy", 3],
+    ["normals", "Local surface analysis", 15, "Point neighborhoods", "Normals + surface structure", 3],
+    ["geometry", "Geometric region extraction", 18, "Normals + connectivity + geometry", "Planes + openings + structure", 3],
+    ["semantic", "3D semantic segmentation", 21, "Geometry + RGB + features + context", "Semantic point masks", 3],
+    ["instance", "Instance segmentation", 15, "Class masks + object separation", "Unique object IDs", 3],
+    ["door", "Door #127 extraction", 13, "Instance point mask", "3D bounds", 3],
+    ["measure", "Boundary-based measurement", 18, "Object XYZ point set", "Width · height · depth", 3],
+    ["other", "Structured object measurement", 21, "Windows · AC · floors · walls · roof", "Dimensions + areas + elevations", 3],
+    ["relationships", "Spatial object relationships", 13, "Objects + host surfaces", "Structured building hierarchy", 3],
 
-    ["mesh", "Surface reconstruction", 45, "Clean points + surface structure", "Progressive triangle mesh", 4],
-    ["texture", "Image-projected surface appearance", 40, "Mesh + simulated camera imagery", "Textured demonstration model", 4],
-    ["final", "Digital building reveal", 50, "Geometry + semantics + appearance", "Interactive digital building", 4],
+    ["mesh", "Surface reconstruction", 23, "Clean points + surface structure", "Progressive triangle mesh", 4],
+    ["texture", "Image-projected surface appearance", 21, "Mesh + simulated camera imagery", "Textured demonstration model", 4],
+    ["final", "Digital building reveal", 26, "Geometry + semantics + appearance", "Interactive digital building", 4],
     ["inspect", "Explore the reconstruction", 1, "Structured demonstration dataset", "Object inspection", 4]
 ];
 
@@ -100,7 +100,7 @@ let state: TimelineState = {
     rate: 1,
     camera: "cinematic",
     isFastForwarding: false,
-    fastForwardRate: 8,
+    fastForwardRate: 10,
     targetTime: null
 };
 
@@ -146,7 +146,7 @@ export const transport = {
     },
 
     // Smooth live speedup forward without cut and go!
-    seekLive(target: number, speedMultiplier = 8) {
+    seekLive(target: number, speedMultiplier = 10) {
         const bounded = Math.max(0, Math.min(END, target));
         if (bounded <= state.time) {
             this.seek(bounded);
@@ -164,22 +164,22 @@ export const transport = {
     },
 
     // Fast-forward forward by N seconds live without cut!
-    forwardLive(seconds = 5, speedMultiplier = 8) {
+    forwardLive(seconds = 10, speedMultiplier = 10) {
         const base = targetSeekTime !== null ? targetSeekTime : state.time;
         this.seekLive(base + seconds, speedMultiplier);
     },
 
     step() {
-        this.forwardLive(2, 4);
+        this.forwardLive(2, 5);
     },
 
     skip() {
         const current = stageAt(state.time);
         const nextStage = stages[Math.min(current.index + 1, stages.length - 1)];
-        this.seekLive(nextStage.start, 12);
+        this.seekLive(nextStage.start, 15);
     },
 
-    startHoldingFastForward(multiplier = 6) {
+    startHoldingFastForward(multiplier = 10) {
         targetSeekTime = null;
         returnToRate = state.rate;
         update({
@@ -226,9 +226,9 @@ export function startTimeline() {
                 // Live speedup to target time without cut and go
                 const remaining = targetSeekTime - state.time;
                 if (remaining > 0.05) {
-                    // Dynamically calculate speed: completes the forward leap in ~0.5s - 0.7s,
-                    // or at least fastForwardRate (e.g. 8x)
-                    const speed = Math.max(state.fastForwardRate, remaining / 0.55);
+                    // Dynamically calculate speed: completes the forward leap in ~0.35s,
+                    // or at least fastForwardRate (10x)
+                    const speed = Math.max(state.fastForwardRate, remaining / 0.35);
                     state.time = Math.min(targetSeekTime, state.time + delta * speed);
                 } else {
                     state.time = targetSeekTime;

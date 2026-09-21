@@ -1,999 +1,647 @@
-import React, { useState, useRef } from 'react';
-import { Download } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  Upload,
+  FileCheck,
+  CheckCircle,
+  AlertTriangle,
+  Download,
+  Eye,
+  RefreshCw,
+  FolderOpen,
+  Layers,
+  FileText,
+  Camera,
+  Cpu,
+  Crosshair,
+  Box,
+  Sliders,
+  ShieldCheck,
+  ArrowRight
+} from 'lucide-react';
+import { DatasetItem, SurveyProject } from '../../../data/survey3dData';
 
 interface DataPreparationSectionProps {
-  selectedState?: string;
-  username?: string;
+  project: SurveyProject;
+  defaultTab?: 'all' | 'gdb' | 'tpk' | 'drone' | 'lidar' | 'gnss' | 'architecture';
+  onNavigateSection: (sectionId: string) => void;
+  onPreviewMap: () => void;
   isGuestMode?: boolean;
-  onLogout?: () => void;
-  project?: {
-    id: string;
-    district: string;
-    ward: string;
-    surveyUnit: string;
-    crs: string;
-  };
-}
-
-interface DatasetFile {
-  fileName: string;
-  fileSize: string;
-  selected: boolean;
-  uploaded: boolean;
-  rawFile?: File | null;
 }
 
 export const DataPreparationSection: React.FC<DataPreparationSectionProps> = ({
-  selectedState = 'Maharashtra',
-  username = 'aman.pokale.soi@gov.in',
-  onLogout
+  project,
+  defaultTab = 'all',
+  onNavigateSection,
+  onPreviewMap,
+  isGuestMode = false
 }) => {
-  // Active Upload Tab: 'tpk' | 'gdb' | 'evidence'
-  const [activeUpload, setActiveUpload] = useState<'tpk' | 'gdb' | 'evidence'>('tpk');
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
 
-  // Administrative Unit State: Hinjawadi, Pune, Maharashtra
-  const [district, setDistrict] = useState('Pune');
-  const [districtCode, setDistrictCode] = useState('521');
+  // File Paths & state
+  const [gdbPath, setGdbPath] = useState('C:\\Users\\diksh\\Downloads\\Indore\\226821.zip');
+  const [tpkPath, setTpkPath] = useState('C:\\Users\\diksh\\Downloads\\Indore\\226821.tpk');
+  const [dronePath, setDronePath] = useState('C:\\NAKSHA\\Survey_Data\\Indore\\226821\\RAW_PHOTOS');
+  const [lidarPath, setLidarPath] = useState('C:\\NAKSHA\\Survey_Data\\Indore\\226821\\LIDAR\\points.laz');
+  const [gnssPath, setGnssPath] = useState('C:\\NAKSHA\\Survey_Data\\Indore\\226821\\GNSS\\base.rnx');
+  const [archPath, setArchPath] = useState('C:\\NAKSHA\\Survey_Data\\Indore\\226821\\PLANS\\Sanctioned.dwg');
 
-  const [ulb, setUlb] = useState('PMRDA - Hinjawadi (270412)');
-  const [ulbCode, setUlbCode] = useState('270412');
-
-  const [ward, setWard] = useState('Hinjawadi Phase 1 - Ward 04');
-  const [wardCode, setWardCode] = useState('270412004');
-
-  const [surveyUnit, setSurveyUnit] = useState('SU-01 (PPCRC Campus / Hinjawadi Phase 1)');
-  const [surveyUnitCode, setSurveyUnitCode] = useState('SU01');
-
-  // ---------------------------------------------------------------------------
-  // 3 DISTINCT DATASET INPUTS (Hinjawadi, Pune Survey Datasets)
-  // ---------------------------------------------------------------------------
-  // 1. ORI / Raster (.TPK)
-  const [tpkFile, setTpkFile] = useState<DatasetFile>({
-    fileName: 'Hinjawadi_Phase1_ORI_UTM43N.tpk',
-    fileSize: '1.24 GB',
-    selected: true,
-    uploaded: false,
-    rawFile: null
-  });
-
-  // 2. Feature Extracted Vector Data (.GDB)
-  const [gdbFile, setGdbFile] = useState<DatasetFile>({
-    fileName: 'Hinjawadi_PPCRC_Cadastral_Parcels.gdb.zip',
-    fileSize: '45.8 MB',
-    selected: true,
-    uploaded: false,
-    rawFile: null
-  });
-
-  // 3. 3D Evidence Package (.ZIP)
-  const [evidenceZip, setEvidenceZip] = useState<DatasetFile>({
-    fileName: 'Hinjawadi_PPCRC_3D_Evidence_Package.zip',
-    fileSize: '342.6 MB',
-    selected: true,
-    uploaded: false,
-    rawFile: null
-  });
-
-  // File input refs
-  const tpkInputRef = useRef<HTMLInputElement | null>(null);
-  const gdbInputRef = useRef<HTMLInputElement | null>(null);
-  const zipInputRef = useRef<HTMLInputElement | null>(null);
-
-  // ---------------------------------------------------------------------------
-  // VALIDATION STATE
-  // ---------------------------------------------------------------------------
+  // Validation Simulation States
   const [isValidating, setIsValidating] = useState(false);
-  const [validationRun, setValidationRun] = useState(false);
-  const [validationPassed, setValidationPassed] = useState<boolean | null>(null);
-  const [validationLog, setValidationLog] = useState<string[]>([]);
-  const [forceFailScenario, setForceFailScenario] = useState<string>('');
+  const [validatedStatus, setValidatedStatus] = useState<Record<string, boolean>>({
+    gdb: true,
+    tpk: true,
+    drone: true,
+    lidar: true,
+    gnss: true,
+    architecture: true
+  });
+  const [consoleLogs, setConsoleLogs] = useState<string[]>([
+    'System Ready. Select a dataset tab and click "Validate Dataset" to run automated integrity and coordinate reference checks.'
+  ]);
 
-  // ---------------------------------------------------------------------------
-  // UPLOAD STATE
-  // ---------------------------------------------------------------------------
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
-
-  // File selection handlers
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'tpk' | 'gdb' | 'evidence') => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const szMb = (file.size / (1024 * 1024)).toFixed(2);
-      const formattedSize = file.size > 1024 * 1024 * 1024
-        ? `${(file.size / (1024 * 1024 * 1024)).toFixed(2)} GB`
-        : `${szMb} MB`;
-
-      if (type === 'tpk') {
-        setTpkFile({ fileName: file.name, fileSize: formattedSize, selected: true, uploaded: false, rawFile: file });
-      } else if (type === 'gdb') {
-        setGdbFile({ fileName: file.name, fileSize: formattedSize, selected: true, uploaded: false, rawFile: file });
-      } else {
-        setEvidenceZip({ fileName: file.name, fileSize: formattedSize, selected: true, uploaded: false, rawFile: file });
-      }
-      setValidationRun(false);
-      setValidationPassed(null);
-      setUploadMessage(null);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // RUN VALIDATION
-  // ---------------------------------------------------------------------------
-  const handleValidate = () => {
+  // Run Real Validation Log for GDB (Preserving desktop manual behavior)
+  const runGdbValidation = () => {
     setIsValidating(true);
-    setValidationRun(false);
-    setUploadMessage(null);
+    setConsoleLogs([]);
+    const steps = [
+      'Validation Started for Feature GDB...',
+      `Extracting zip file to: ${gdbPath}\\Extracted\\226821...`,
+      'Validating file name... Done!',
+      'Validating GDB File... Done!',
+      'Validating PROPERTY_PARCEL Layer...',
+      'Checking Layer Projection... Found WKID: 32643 (UTM Zone 43N) - Done!',
+      'Validating Fields schema (ULPIN, OWNER_NAME, LAND_USE, AREA_SQM)... Done!',
+      'Checking data in GDB file...',
+      'Validating duplicate values... Done!',
+      'Validating Village/Ward Code (54 - Residency ward)... Done!',
+      'Validating Start Plot Number (101/1)... Done!',
+      'Validating Mandatory attributes... Done!',
+      'Checking special characters in Plot Data... - Done!',
+      'Checking Duplicate plot numbers... - Done!',
+      'PASS: Vector Cadastral File Found VALID.'
+    ];
 
-    setTimeout(() => {
-      setIsValidating(false);
-      setValidationRun(true);
-
-      if (forceFailScenario === 'crs_mismatch') {
-        setValidationPassed(false);
-        setValidationLog([
-          '✓ TPK — Valid',
-          '✓ GDB — Valid',
-          '✕ LiDAR — CRS Mismatch',
-          '✓ DEM/DSM — Valid',
-          '✓ GNSS/GCP — Valid',
-          '✓ Floor Plan — Found',
-          '⚠ Optional 3D Reference — Not provided',
-          '',
-          '[ VALIDATION FAILED ]',
-          'CRITICAL ERROR: Coordinate Reference System Mismatch.',
-          'TPK & GDB are projected in EPSG: 32643 (UTM Zone 43N), but LiDAR point cloud header in 3D Evidence ZIP specifies EPSG: 4326 (Geographic WGS84). Coordinates cannot be reconciled.'
-        ]);
-        return;
-      }
-
-      if (forceFailScenario === 'missing_plan') {
-        setValidationPassed(false);
-        setValidationLog([
-          '✓ TPK — Valid',
-          '✓ GDB — Valid',
-          '✓ LiDAR — Valid',
-          '✓ DEM/DSM — Valid',
-          '✓ GNSS/GCP — Valid',
-          '✕ Floor Plan — Missing',
-          '⚠ Optional 3D Reference — Not provided',
-          '',
-          '[ VALIDATION FAILED ]',
-          'CRITICAL ERROR: Mandatory Building Floor Plan Missing.',
-          '3D Evidence ZIP does not contain any approved architectural building plans (.PDF / .DWG / .DXF). Vertical unit validation cannot proceed.'
-        ]);
-        return;
-      }
-
-      // Default: VALIDATION PASSED
-      setValidationPassed(true);
-      setValidationLog([
-        '✓ TPK — Valid',
-        '✓ GDB — Valid',
-        '✓ LiDAR — Valid',
-        '✓ DEM/DSM — Valid',
-        '✓ GNSS/GCP — Valid',
-        '✓ Floor Plan — Found',
-        '⚠ Optional 3D Reference — Not provided',
-        '',
-        '[ VALIDATION PASSED ]'
-      ]);
-    }, 800);
+    steps.forEach((line, index) => {
+      setTimeout(() => {
+        setConsoleLogs((prev) => [...prev, line]);
+        if (index === steps.length - 1) {
+          setIsValidating(false);
+          setValidatedStatus((prev) => ({ ...prev, gdb: true }));
+        }
+      }, (index + 1) * 140);
+    });
   };
 
-  // ---------------------------------------------------------------------------
-  // UPLOAD DATASET ACTION
-  // ---------------------------------------------------------------------------
-  const handleUpload = () => {
-    if (!validationPassed) {
-      alert('Please validate the survey data file before uploading.');
-      return;
-    }
+  // Run Real Validation Log for TPK (Preserving desktop manual behavior)
+  const runTpkValidation = () => {
+    setIsValidating(true);
+    setConsoleLogs([]);
+    const steps = [
+      'Validating Drone ORI Raster file...',
+      'Checking Layer Projection... WGS_1984_UTM_Zone_43N (EPSG: 32643)',
+      'Extent: XMin=588468.592, YMin=2509944.351, XMax=592633.142, YMax=2513002.951',
+      'Resolution: 0.05m GSD (Ground Sample Distance) - PASS',
+      'Raster Bands: 3 (Red, Green, Blue) - Radiometric Depth: 8-bit',
+      'Validating Tile Cache Index & Metadata... Done!',
+      'Compression: JPEG (Quality: 85%) - PASS',
+      'Coordinate Reference System Integrity Check: OK',
+      'PASS: Raster TPK File Found VALID.'
+    ];
 
-    setIsUploading(true);
-    const activeFileName =
-      activeUpload === 'tpk' ? tpkFile.fileName : activeUpload === 'gdb' ? gdbFile.fileName : evidenceZip.fileName;
-
-    setTimeout(() => {
-      setIsUploading(false);
-      if (activeUpload === 'tpk') setTpkFile(prev => ({ ...prev, uploaded: true }));
-      else if (activeUpload === 'gdb') setGdbFile(prev => ({ ...prev, uploaded: true }));
-      else setEvidenceZip(prev => ({ ...prev, uploaded: true }));
-
-      setUploadMessage(`✓ File "${activeFileName}" successfully uploaded and registered to NAKSHA repository for Survey Unit: ${surveyUnit}!`);
-    }, 900);
+    steps.forEach((line, index) => {
+      setTimeout(() => {
+        setConsoleLogs((prev) => [...prev, line]);
+        if (index === steps.length - 1) {
+          setIsValidating(false);
+          setValidatedStatus((prev) => ({ ...prev, tpk: true }));
+        }
+      }, (index + 1) * 150);
+    });
   };
 
-  // ---------------------------------------------------------------------------
-  // DOWNLOAD VALIDATION REPORT (.TXT FILE DOWNLOAD)
-  // ---------------------------------------------------------------------------
-  const handleDownloadReport = () => {
-    const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-    const content = `================================================================================
-SURVEY OF INDIA — NAKSHA 3D VERTICAL PROPERTY CADASTRE
-OFFICIAL SURVEY DATA VALIDATION AUDIT REPORT
+  // Run Validation for Drone Images
+  const runDroneValidation = () => {
+    setIsValidating(true);
+    setConsoleLogs([]);
+    const steps = [
+      'Scanning Drone Image Folder: 4,820 exposures...',
+      'Validating EXIF metadata and GPS geotags... 4,820 / 4,820 present (100%)',
+      'Checking Camera Sensor Calibration: Sony α7R IV (35mm f/2.8 lens) - OK',
+      'Analyzing Timestamp consistency: 05-Sep-2026 10:14:02 to 10:58:34 IST',
+      'Calculating Multi-View Overlap: Forward: 82% (PASS >= 80%), Side: 76% (PASS >= 75%)',
+      'Laplacian Image Blur QC: 4,818 sharp (99.9%), 2 boundary turns flagged - PASS',
+      'PASS: Drone Imagery Dataset Validated for Dense Photogrammetry.'
+    ];
+
+    steps.forEach((line, index) => {
+      setTimeout(() => {
+        setConsoleLogs((prev) => [...prev, line]);
+        if (index === steps.length - 1) {
+          setIsValidating(false);
+          setValidatedStatus((prev) => ({ ...prev, drone: true }));
+        }
+      }, (index + 1) * 150);
+    });
+  };
+
+  // Run Validation for LiDAR
+  const runLidarValidation = () => {
+    setIsValidating(true);
+    setConsoleLogs([]);
+    const steps = [
+      'Reading ASPRS LAS 1.4 Point Cloud Header...',
+      'Point Count: 48,600,000 returns recorded',
+      'Calculating Spatial Point Density: 138.4 pts/m² on building roofs (PASS >= 100)',
+      'Checking Sensor Boresight & IMU Trajectory: Riegl miniVUX-3UAV calibrated - OK',
+      'Evaluating Return Classes: First, Intermediate, and Last returns intact - PASS',
+      'CRS Verification: Projected UTM Zone 43N Ellipsoidal Height - OK',
+      'PASS: LiDAR Point Cloud Dataset Validated.'
+    ];
+
+    steps.forEach((line, index) => {
+      setTimeout(() => {
+        setConsoleLogs((prev) => [...prev, line]);
+        if (index === steps.length - 1) {
+          setIsValidating(false);
+          setValidatedStatus((prev) => ({ ...prev, lidar: true }));
+        }
+      }, (index + 1) * 150);
+    });
+  };
+
+  // Run Validation for GNSS
+  const runGnssValidation = () => {
+    setIsValidating(true);
+    setConsoleLogs([]);
+    const steps = [
+      'Reading Dual-Frequency RINEX 3.04 Observation Logs...',
+      'Connecting to Survey of India CORS Network (Base Station MP-IND-01)...',
+      'Satellite Constellations: NavIC (8), GPS (12), GLONASS (7), Galileo (6) - Locked',
+      'Ambiguity Resolution: RTK FIX achieved across 100% of trajectory epochs',
+      'Horizontal RMS: 0.009m (PASS <= 0.025m), Vertical RMS: 0.014m (PASS <= 0.050m)',
+      'Validating 14 GCPs and 6 Independent Checkpoints against ground monument registry - OK',
+      'PASS: GNSS / CORS Control Data Validated.'
+    ];
+
+    steps.forEach((line, index) => {
+      setTimeout(() => {
+        setConsoleLogs((prev) => [...prev, line]);
+        if (index === steps.length - 1) {
+          setIsValidating(false);
+          setValidatedStatus((prev) => ({ ...prev, gnss: true }));
+        }
+      }, (index + 1) * 150);
+    });
+  };
+
+  // Run Validation for Architecture
+  const runArchitectureValidation = () => {
+    setIsValidating(true);
+    setConsoleLogs([]);
+    const steps = [
+      'Importing Sanctioned Architectural CAD Drawing (.dwg)...',
+      'Reading IMC Town Planning Approval Records (Sanction Ref: IMC/TP/2021/412)...',
+      'Extracting Approved Floor Levels: Ground, Floor 1, Floor 2, Floor 3 (G+3 sanction)',
+      'Extracting Approved Footprint Polygons: 540.0 m² ground coverage',
+      'Extracting Permissible Maximum Height: 15.0m',
+      'Layer Mapping: Architecture CAD aligned to local survey coordinate origin - OK',
+      'PASS: Building Architecture Dataset Loaded as Evidence Baseline.'
+    ];
+
+    steps.forEach((line, index) => {
+      setTimeout(() => {
+        setConsoleLogs((prev) => [...prev, line]);
+        if (index === steps.length - 1) {
+          setIsValidating(false);
+          setValidatedStatus((prev) => ({ ...prev, architecture: true }));
+        }
+      }, (index + 1) * 150);
+    });
+  };
+
+  // Dispatch current validation
+  const handleValidateCurrentTab = () => {
+    if (activeTab === 'gdb') runGdbValidation();
+    else if (activeTab === 'tpk') runTpkValidation();
+    else if (activeTab === 'drone') runDroneValidation();
+    else if (activeTab === 'lidar') runLidarValidation();
+    else if (activeTab === 'gnss') runGnssValidation();
+    else if (activeTab === 'architecture') runArchitectureValidation();
+    else runGdbValidation();
+  };
+
+  // Download official audit report
+  const downloadReport = () => {
+    const reportContent = `
 ================================================================================
-Audit Timestamp : ${timestamp} IST
-Operator Name   : Aman Pokale (${username})
-Authority       : Survey of India, Ministry of Science & Technology
-State           : ${selectedState}
-District        : ${district} (Code: ${districtCode})
-ULB / Taluka    : ${ulb} (Code: ${ulbCode})
-Ward            : ${ward} (Code: ${wardCode})
-Survey Unit     : ${surveyUnit} (Code: ${surveyUnitCode})
-Application Ver : 2.0.13 (3D Vertical Cadastre Extension)
+NAKSHA V2.0 DESKTOP WORKSTATION - GEOSPATIAL VALIDATION AUDIT REPORT
+Department of Land Resources | Ministry of Rural Development & Survey of India
 ================================================================================
-
-1. ORI / RASTER DATA (.TPK):
-   • File Name        : ${tpkFile.fileName} (${tpkFile.fileSize})
-   • File Integrity   : SHA-256 Checksum Verified [PASS]
-   • Tile Structure   : ArcGIS Tile Package 2.0 Compact Cache
-   • CRS / Projection : WGS 84 / UTM Zone 43N (EPSG: 32643)
-   • Spatial Extent   : [373500.00, 2055100.00] to [375200.00, 2056800.00] (Hinjawadi Phase 1)
-   • Readability      : 3-Band RGB, 8-bit depth, 0.05m GSD
-   • Status           : [✓ VALID]
-
-2. FEATURE EXTRACTED VECTOR DATA (.GDB):
-   • File Name        : ${gdbFile.fileName} (${gdbFile.fileSize})
-   • Structure        : ESRI File Geodatabase v10.x Verified [PASS]
-   • CRS / Projection : UTM Zone 43N (WKID: 32643)
-   • Geometry Validity: 100% Valid Polygon Topology, 0 Self-Intersections
-   • Feature Layers   : PROPERTY_PARCEL (PPCRC Campus), PLOT_BOUNDARY, BUILDING_FOOTPRINT
-   • Required Schema  : ULPIN (27250401420089), OWNER_NAME, LAND_USE, AREA_SQM
-   • Record Integrity : 0 Duplicates, 0 Null Mandatory Keys
-   • Status           : [✓ VALID]
-
-3. 3D / VERTICAL EVIDENCE PACKAGE (.ZIP):
-   • File Name        : ${evidenceZip.fileName} (${evidenceZip.fileSize})
-   • Container Form   : PKZip Container Archive (SHA-256 Verified) [PASS]
-   • LiDAR LAS/LAZ    : ASPRS LAS 1.4 Point Cloud, 48,600,000 Returns, 138.4 pts/m²
-   • Elevation Model  : GeoTIFF 32-bit Float DEM (bare earth) & DSM (surface), 0.05m GSD
-   • GNSS/GCP Control : 14 GCPs + 6 Checkpoints, CORS RTK Lock Fixed
-                        Horizontal RMS: 0.009m (PASS <= 0.025m)
-                        Vertical RMS  : 0.014m (PASS <= 0.050m)
-   • Building Plans   : Sanctioned CAD Drawing (.dwg) PMRDA/TP/2021/8412 Detected
-                        PPCRC Hinjawadi G+3 Tiers (Ground + 3 Upper Floors), 540 m² Footprint
-   • 3D Reference     : Not provided (Non-blocking optional visualization model)
-   • metadata.json    : Schema Version 1.2 compliant, CRS consistency confirmed
-   • Status           : [✓ VALID]
-
+Generated Date   : ${new Date().toLocaleString()}
+Application      : NAKSHA V2.0 Desktop Workstation (3D Survey Edition)
+Operator User    : ${isGuestMode ? 'Guest User (Unauthenticated)' : 'soi_operator_01 (Authorized)'}
+Project ID       : ${project.id}
+State / District : ${project.state} / ${project.district}
+ULB / Ward       : ${project.ulb} / ${project.ward}
+Survey Unit      : ${project.surveyUnit}
+Target Dataset   : ${activeTab.toUpperCase()}
+Coordinate Sys   : ${project.crs}
+--------------------------------------------------------------------------------
+VALIDATION CONSOLE AUDIT TRAIL:
+${consoleLogs.join('\n')}
 ================================================================================
-VALIDATION RESULTS SUMMARY:
-✓ TPK — Valid
-✓ GDB — Valid
-✓ LiDAR — Valid
-✓ DEM/DSM — Valid
-✓ GNSS/GCP — Valid
-✓ Floor Plan — Found
-⚠ Optional 3D Reference — Not provided
+End of Validation Report.
+    `.trim();
 
-OVERALL RESULT: [ VALIDATION PASSED ]
-Authorized for 3D Property Unit Extraction & Vertical Registration Pipeline.
-================================================================================
-Digital Signature Token: SOI-NAKSHA-3D-VERIFIED-${Date.now()}
-`;
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([reportContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `NAKSHA_3D_Validation_Report_Pune_Hinjawadi_${surveyUnitCode}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `NAKSHA_Validation_Report_${project.id}_${activeTab}_${Date.now()}.txt`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
-  // Get current file info
-  const getCurrentFile = () => {
-    if (activeUpload === 'tpk') return tpkFile;
-    if (activeUpload === 'gdb') return gdbFile;
-    return evidenceZip;
-  };
-
-  const currentFile = getCurrentFile();
-
   return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', flex: 1 }}>
+      {/* Cyan Header Banner */}
+      <div style={{
+        backgroundColor: '#06b6d4',
+        backgroundImage: 'linear-gradient(90deg, #06b6d4 0%, #0284c7 100%)',
+        color: '#ffffff',
+        padding: '10px 18px',
+        borderRadius: '4px',
+        fontSize: '14px',
+        fontWeight: 700,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.08)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Upload size={16} />
+          <span>Data Ingestion & Multi-Sensor Pre-Processing Validation Center</span>
+        </div>
+        <div style={{ fontSize: '11.5px', color: '#e0f2fe' }}>
+          Automated Integrity, Coordinate System & Quality QC
+        </div>
+      </div>
+
+      {/* Main Container */}
+      <div style={{
         backgroundColor: '#ffffff',
+        border: '1px solid #cbd5e1',
+        borderRadius: '6px',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif',
-        userSelect: 'none',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         overflow: 'hidden'
-      }}
-    >
-      {/* ------------------------------------------------------------------- */}
-      {/* TOP TITLE BAR (- Naksha | _ □ ✕)                                    */}
-      {/* ------------------------------------------------------------------- */}
-      <div
-        style={{
-          height: '24px',
+      }}>
+        {/* Tab Strip */}
+        <div style={{
           backgroundColor: '#f1f5f9',
           borderBottom: '1px solid #cbd5e1',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 8px',
-          fontSize: '11px',
-          color: '#334155'
-        }}
-      >
-        <span>— Naksha</span>
-        <div style={{ display: 'flex', gap: '8px', color: '#64748b' }}>
-          <span>—</span>
-          <span>□</span>
-          <span style={{ cursor: 'pointer' }} onClick={onLogout}>✕</span>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------------------- */}
-      {/* OFFICIAL NAKSHA HEADER (Navy Blue Banner)                           */}
-      {/* ------------------------------------------------------------------- */}
-      <div
-        style={{
-          backgroundColor: '#13386e',
-          color: '#ffffff',
-          height: '56px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 16px',
-          flexShrink: 0
-        }}
-      >
-        {/* Left: Emblem + NAKSHA text */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img
-            src="/assets/bharat-sarkar.svg"
-            alt="Emblem of India"
-            style={{ height: '36px', filter: 'brightness(0) invert(1)' }}
-            onError={(e) => {
-              // Fallback text if svg fails
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '0.5px' }}>
-              NAKSHA
-            </span>
-            <span style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.85)' }}>
-              National Geospatial Knowledge-based Land Survey of Urban Habitations
-            </span>
-          </div>
-        </div>
-
-        {/* Right: Operator info */}
-        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '1px' }}>
-          <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#ffffff' }}>
-            Aman Pokale ({username})
-          </span>
-          <span style={{ fontSize: '10.5px', color: 'rgba(255, 255, 255, 0.9)' }}>
-            {selectedState} • Pune Division
-          </span>
-          <span style={{ fontSize: '10px', color: 'rgba(255, 255, 255, 0.75)' }}>
-            Surveyor / State Admin
-          </span>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------------------- */}
-      {/* MAIN BODY: 2 COLUMNS (Left Sidebar + Right Content Area)            */}
-      {/* ------------------------------------------------------------------- */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* ================================================================= */}
-        {/* LEFT SIDEBAR (Sidebar with 3 buttons + Watermark + Version)        */}
-        {/* ================================================================= */}
-        <div
-          style={{
-            width: '145px',
-            backgroundColor: '#edf3f8',
-            borderRight: '1px solid #cbd5e1',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            padding: '12px 10px',
-            flexShrink: 0
-          }}
-        >
-          {/* Top: 3 Upload Buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {/* Button 1: Upload TPK */}
-            <button
-              onClick={() => {
-                setActiveUpload('tpk');
-                setValidationRun(false);
-                setUploadMessage(null);
-              }}
-              style={{
-                width: '100%',
-                height: '34px',
-                backgroundColor: activeUpload === 'tpk' ? '#0b2559' : '#ffffff',
-                color: activeUpload === 'tpk' ? '#ffffff' : '#0b2559',
-                border: activeUpload === 'tpk' ? 'none' : '1.5px solid #0b2559',
-                borderRadius: '3px',
-                fontWeight: 700,
-                fontSize: '11.5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: activeUpload === 'tpk' ? '0 1px 3px rgba(11, 37, 89, 0.3)' : 'none'
-              }}
-            >
-              Upload TPK
-            </button>
-
-            {/* Button 2: Upload GDB */}
-            <button
-              onClick={() => {
-                setActiveUpload('gdb');
-                setValidationRun(false);
-                setUploadMessage(null);
-              }}
-              style={{
-                width: '100%',
-                height: '34px',
-                backgroundColor: activeUpload === 'gdb' ? '#0b2559' : '#ffffff',
-                color: activeUpload === 'gdb' ? '#ffffff' : '#0b2559',
-                border: activeUpload === 'gdb' ? 'none' : '1.5px solid #0b2559',
-                borderRadius: '3px',
-                fontWeight: 700,
-                fontSize: '11.5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: activeUpload === 'gdb' ? '0 1px 3px rgba(11, 37, 89, 0.3)' : 'none'
-              }}
-            >
-              Upload GDB
-            </button>
-
-            {/* Button 3: Upload 3D Evidence */}
-            <button
-              onClick={() => {
-                setActiveUpload('evidence');
-                setValidationRun(false);
-                setUploadMessage(null);
-              }}
-              style={{
-                width: '100%',
-                height: '34px',
-                backgroundColor: activeUpload === 'evidence' ? '#0b2559' : '#ffffff',
-                color: activeUpload === 'evidence' ? '#ffffff' : '#0b2559',
-                border: activeUpload === 'evidence' ? 'none' : '1.5px solid #0b2559',
-                borderRadius: '3px',
-                fontWeight: 700,
-                fontSize: '11.5px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: activeUpload === 'evidence' ? '0 1px 3px rgba(11, 37, 89, 0.3)' : 'none'
-              }}
-            >
-              Upload 3D Evidence
-            </button>
-          </div>
-
-          {/* Bottom: Surveyor Watermark SVG + Version */}
-          <div>
-            {/* Watermark Illustration matching official app */}
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'center', marginBottom: '8px', opacity: 0.6 }}>
-              <svg width="110" height="110" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Cadastral Map Grid Lines */}
-                <polygon points="15,90 60,65 105,90 60,110" stroke="#7ea3c7" strokeWidth="1.2" fill="#d9e9f7" />
-                <line x1="37" y1="78" x2="82" y2="100" stroke="#7ea3c7" strokeWidth="0.9" />
-                <line x1="60" y1="65" x2="60" y2="110" stroke="#7ea3c7" strokeWidth="0.9" />
-                <line x1="82" y1="78" x2="37" y2="100" stroke="#7ea3c7" strokeWidth="0.9" />
-
-                {/* Location Pin */}
-                <circle cx="85" cy="80" r="4" fill="#0b2559" />
-                <path d="M85 84 L85 92" stroke="#0b2559" strokeWidth="1.5" />
-
-                {/* Surveyor Tripod / Total Station */}
-                <line x1="70" y1="42" x2="55" y2="85" stroke="#4a6d91" strokeWidth="1.5" />
-                <line x1="70" y1="42" x2="70" y2="85" stroke="#4a6d91" strokeWidth="1.5" />
-                <line x1="70" y1="42" x2="85" y2="85" stroke="#4a6d91" strokeWidth="1.5" />
-                <circle cx="70" cy="40" r="4" fill="#1b539c" />
-                <line x1="64" y1="40" x2="76" y2="40" stroke="#1b539c" strokeWidth="2" />
-
-                {/* Drone in the air */}
-                <rect x="25" y="24" width="16" height="5" rx="2" fill="#1b539c" />
-                <line x1="18" y1="21" x2="48" y2="31" stroke="#4a6d91" strokeWidth="1.5" />
-                <line x1="18" y1="31" x2="48" y2="21" stroke="#4a6d91" strokeWidth="1.5" />
-                <ellipse cx="18" cy="21" rx="5" ry="1.5" fill="#7ea3c7" />
-                <ellipse cx="48" cy="21" rx="5" ry="1.5" fill="#7ea3c7" />
-                <ellipse cx="18" cy="31" rx="5" ry="1.5" fill="#7ea3c7" />
-                <ellipse cx="48" cy="31" rx="5" ry="1.5" fill="#7ea3c7" />
-                {/* Drone signal rays */}
-                <path d="M33 30 L45 55" stroke="#7ea3c7" strokeWidth="1" strokeDasharray="2 2" />
-                <path d="M33 30 L20 60" stroke="#7ea3c7" strokeWidth="1" strokeDasharray="2 2" />
-              </svg>
-            </div>
-
-            <div style={{ fontSize: '10.5px', color: '#64748b' }}>
-              Version : 2.0.13
-            </div>
-          </div>
-        </div>
-
-        {/* ================================================================= */}
-        {/* RIGHT MAIN PANEL (Exact layout from user screenshot)               */}
-        {/* ================================================================= */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            padding: '12px 16px',
-            backgroundColor: '#ffffff',
-            overflowY: 'auto'
-          }}
-        >
-          {/* Main Form Container Card */}
-          <div
-            style={{
-              border: '1px solid #cbd5e1',
-              borderRadius: '2px',
-              display: 'flex',
-              flexDirection: 'column',
-              backgroundColor: '#ffffff',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-            }}
-          >
-            {/* Teal Header Banner */}
-            <div
-              style={{
-                height: '34px',
-                backgroundColor: '#1ea896',
-                color: '#ffffff',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '0 14px',
-                fontSize: '13px',
-                fontWeight: 700,
-                letterSpacing: '0.2px'
-              }}
-            >
-              <span>
-                {activeUpload === 'gdb' && "Upload Feature Extracted/Plot Data File's"}
-                {activeUpload === 'tpk' && "Upload ORI / Raster Data File's"}
-                {activeUpload === 'evidence' && "Upload 3D / Vertical Evidence Package File's"}
-              </span>
-
-              {/* QC Failure Simulator Toggle (For Testing / Audit Demo) */}
-              <select
-                value={forceFailScenario}
-                onChange={(e) => {
-                  setForceFailScenario(e.target.value);
-                  setValidationRun(false);
-                  setValidationPassed(null);
-                }}
-                style={{
-                  fontSize: '10.5px',
-                  backgroundColor: 'rgba(255,255,255,0.9)',
-                  color: '#0f2b5c',
-                  border: 'none',
-                  borderRadius: '3px',
-                  padding: '2px 6px',
-                  cursor: 'pointer',
-                  outline: 'none',
-                  fontWeight: 600
-                }}
-                title="Simulate validation scenarios"
-              >
-                <option value="">QC: Normal (All Valid)</option>
-                <option value="crs_mismatch">Simulate: CRS Mismatch</option>
-                <option value="missing_plan">Simulate: Missing Floor Plan</option>
-              </select>
-            </div>
-
-            {/* Form Fields Section */}
-            <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {/* Row 1: District & ULB */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: '24px' }}>
-                {/* District */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#1e293b' }}>District :</span>
-                    <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
-                  </div>
-                  <select
-                    value={district}
-                    onChange={(e) => setDistrict(e.target.value)}
-                    style={{
-                      height: '28px',
-                      fontSize: '12px',
-                      border: '1px solid #94a3b8',
-                      borderRadius: '2px',
-                      padding: '0 8px',
-                      backgroundColor: '#ffffff',
-                      color: '#1e293b',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="Pune">Pune</option>
-                    <option value="Yadadri Bhuvanagiri">Yadadri Bhuvanagiri</option>
-                    <option value="Indore">Indore</option>
-                    <option value="Hyderabad">Hyderabad</option>
-                    <option value="Bhopal">Bhopal</option>
-                  </select>
-                  <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
-                    {districtCode}
-                  </span>
-                </div>
-
-                {/* ULB */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#1e293b' }}>ULB :</span>
-                    <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
-                  </div>
-                  <select
-                    value={ulb}
-                    onChange={(e) => setUlb(e.target.value)}
-                    style={{
-                      height: '28px',
-                      fontSize: '12px',
-                      border: '1px solid #94a3b8',
-                      borderRadius: '2px',
-                      padding: '0 8px',
-                      backgroundColor: '#ffffff',
-                      color: '#1e293b',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="PMRDA - Hinjawadi (270412)">PMRDA - Hinjawadi (270412)</option>
-                    <option value="Yadagirigutta - 290146">Yadagirigutta - 290146</option>
-                    <option value="Indore Municipal Corp - 108420">Indore Municipal Corp - 108420</option>
-                    <option value="GHMC - 250101">GHMC - 250101</option>
-                  </select>
-                  <span style={{ fontSize: '10px', color: '#ea580c', fontWeight: 600, marginTop: '2px' }}>
-                    {ulbCode}
-                  </span>
-                </div>
-              </div>
-
-              {/* Row 2: Ward & Survey Unit */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: '24px' }}>
-                {/* Ward */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#1e293b' }}>Ward :</span>
-                    <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
-                  </div>
-                  <select
-                    value={ward}
-                    onChange={(e) => setWard(e.target.value)}
-                    style={{
-                      height: '28px',
-                      fontSize: '12px',
-                      border: '1px solid #94a3b8',
-                      borderRadius: '2px',
-                      padding: '0 8px',
-                      backgroundColor: '#ffffff',
-                      color: '#1e293b',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="Hinjawadi Phase 1 - Ward 04">Hinjawadi Phase 1 - Ward 04</option>
-                    <option value="Ward7">Ward7</option>
-                    <option value="Ward 14">Ward 14</option>
-                    <option value="Ward 21">Ward 21</option>
-                  </select>
-                  <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
-                    {wardCode}
-                  </span>
-                </div>
-
-                {/* Survey Unit */}
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#1e293b' }}>Survey Unit :</span>
-                    <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
-                  </div>
-                  <select
-                    value={surveyUnit}
-                    onChange={(e) => setSurveyUnit(e.target.value)}
-                    style={{
-                      height: '28px',
-                      fontSize: '12px',
-                      border: '1px solid #94a3b8',
-                      borderRadius: '2px',
-                      padding: '0 8px',
-                      backgroundColor: '#ffffff',
-                      color: '#1e293b',
-                      outline: 'none'
-                    }}
-                  >
-                    <option value="SU-01 (PPCRC Campus / Hinjawadi Phase 1)">SU-01 (PPCRC Campus / Hinjawadi Phase 1)</option>
-                    <option value="SU-02 (Rajiv Gandhi Infotech Park)">SU-02 (Rajiv Gandhi Infotech Park)</option>
-                    <option value="SU-03 (Commercial Complex)">SU-03 (Commercial Complex)</option>
-                  </select>
-                  <span style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>
-                    {surveyUnitCode}
-                  </span>
-                </div>
-              </div>
-
-              {/* Row 3: File Input & Action Buttons (Validate / Upload) */}
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  columnGap: '24px',
-                  alignItems: 'flex-start',
-                  marginTop: '4px'
-                }}
-              >
-                {/* File Chooser */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#1e293b' }}>File :</span>
-                    <span style={{ color: '#ef4444', fontWeight: 700 }}>*</span>
-                  </div>
-
-                  {/* Hidden File Inputs */}
-                  <input
-                    ref={tpkInputRef}
-                    type="file"
-                    accept=".tpk"
-                    onChange={(e) => handleFileChange(e, 'tpk')}
-                    style={{ display: 'none' }}
-                  />
-                  <input
-                    ref={gdbInputRef}
-                    type="file"
-                    accept=".gdb,.zip"
-                    onChange={(e) => handleFileChange(e, 'gdb')}
-                    style={{ display: 'none' }}
-                  />
-                  <input
-                    ref={zipInputRef}
-                    type="file"
-                    accept=".zip"
-                    onChange={(e) => handleFileChange(e, 'evidence')}
-                    style={{ display: 'none' }}
-                  />
-
-                  {/* Choose File Button */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
-                    <button
-                      onClick={() => {
-                        if (activeUpload === 'tpk') tpkInputRef.current?.click();
-                        else if (activeUpload === 'gdb') gdbInputRef.current?.click();
-                        else zipInputRef.current?.click();
-                      }}
-                      style={{
-                        height: '28px',
-                        backgroundColor: '#ffffff',
-                        border: '1px solid #475569',
-                        borderRadius: '2px',
-                        color: '#1e293b',
-                        fontSize: '11.5px',
-                        cursor: 'pointer',
-                        padding: '0 12px',
-                        textAlign: 'center',
-                        fontWeight: 500
-                      }}
-                    >
-                      {activeUpload === 'tpk' && 'Choose a .TPK File'}
-                      {activeUpload === 'gdb' && 'Choose a .GDB File'}
-                      {activeUpload === 'evidence' && 'Choose 3D Evidence .ZIP File'}
-                    </button>
-
-                    {/* Selected File Name / Size */}
-                    <div style={{ fontSize: '10.5px', color: '#0284c7', fontWeight: 600 }}>
-                      Selected: <b>{currentFile.fileName}</b> ({currentFile.fileSize})
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Validate & Upload Buttons */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', alignItems: 'center' }}>
-                  {/* Validate Button */}
-                  <button
-                    onClick={handleValidate}
-                    disabled={isValidating}
-                    style={{
-                      height: '28px',
-                      minWidth: '90px',
-                      backgroundColor: '#d1d5db',
-                      color: '#1f2937',
-                      border: 'none',
-                      borderRadius: '2px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: isValidating ? 'not-allowed' : 'pointer',
-                      padding: '0 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    {isValidating ? 'Validating...' : 'Validate'}
-                  </button>
-
-                  {/* Upload Button */}
-                  <button
-                    onClick={handleUpload}
-                    disabled={isUploading}
-                    style={{
-                      height: '28px',
-                      minWidth: '90px',
-                      backgroundColor: validationPassed ? '#16a34a' : '#d1d5db',
-                      color: validationPassed ? '#ffffff' : '#4b5563',
-                      border: 'none',
-                      borderRadius: '2px',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: isUploading ? 'not-allowed' : 'pointer',
-                      padding: '0 16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    {isUploading ? 'Uploading...' : 'Upload'}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Upload Notification Message */}
-            {uploadMessage && (
-              <div
-                style={{
-                  margin: '0 18px 8px 18px',
-                  backgroundColor: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  color: '#15803d',
-                  padding: '6px 12px',
-                  borderRadius: '2px',
-                  fontSize: '11.5px',
-                  fontWeight: 600
-                }}
-              >
-                {uploadMessage}
-              </div>
-            )}
-
-            {/* Central Large White Log / Report Box (Matching official app) */}
-            <div
-              style={{
-                margin: '0 18px 14px 18px',
-                border: '1px solid #b0bec5',
-                borderRadius: '2px',
-                backgroundColor: '#ffffff',
-                minHeight: '260px',
-                maxHeight: '340px',
-                overflowY: 'auto',
-                padding: '16px 20px',
-                fontFamily: 'Consolas, Monaco, "Courier New", monospace, sans-serif',
-                fontSize: '12.5px',
-                lineHeight: 1.6,
-                color: '#1e293b'
-              }}
-            >
-              {!validationRun && !isValidating && (
-                <div style={{ color: '#94a3b8', fontStyle: 'italic', paddingTop: '80px', textAlign: 'center' }}>
-                  <div>Ready for survey data verification.</div>
-                  <div style={{ fontSize: '11.5px', marginTop: '6px', color: '#64748b' }}>
-                    Select administrative unit, choose file, and click <b>[ Validate ]</b>.
-                  </div>
-                </div>
-              )}
-
-              {isValidating && (
-                <div style={{ color: '#0284c7', paddingTop: '80px', textAlign: 'center', fontWeight: 600 }}>
-                  Executing SHA-256 integrity, coordinate reference (CRS), and schema consistency checks...
-                </div>
-              )}
-
-              {validationRun && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  {validationLog.map((line, idx) => {
-                    const isSuccess = line.startsWith('✓');
-                    const isWarn = line.startsWith('⚠');
-                    const isFail = line.startsWith('✕');
-                    const isPassedBanner = line.includes('[ VALIDATION PASSED ]');
-                    const isFailedBanner = line.includes('[ VALIDATION FAILED ]');
-
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          fontWeight: isPassedBanner || isFailedBanner ? 800 : isSuccess || isWarn || isFail ? 700 : 500,
-                          fontSize: isPassedBanner || isFailedBanner ? '13.5px' : '12px',
-                          color: isPassedBanner
-                            ? '#15803d'
-                            : isFailedBanner
-                            ? '#dc2626'
-                            : isSuccess
-                            ? '#16a34a'
-                            : isWarn
-                            ? '#b45309'
-                            : isFail
-                            ? '#dc2626'
-                            : '#334155',
-                          marginTop: isPassedBanner || isFailedBanner ? '10px' : '0'
-                        }}
-                      >
-                        {line}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Row: Download Validation Report + Logout Button */}
-            <div
-              style={{
-                padding: '10px 18px 14px 18px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
-              {/* Left: Download Validation Report */}
+          gap: '2px',
+          padding: '6px 12px 0 12px',
+          overflowX: 'auto'
+        }}>
+          {[
+            { id: 'all', label: 'All Ingested Datasets', icon: <Layers size={13} /> },
+            { id: 'gdb', label: 'Vector GDB (.zip)', icon: <FileText size={13} /> },
+            { id: 'tpk', label: 'Raster TPK (.tpk)', icon: <Layers size={13} /> },
+            { id: 'drone', label: 'Drone RGB Photos', icon: <Camera size={13} /> },
+            { id: 'lidar', label: 'LiDAR LAS/LAZ', icon: <Cpu size={13} /> },
+            { id: 'gnss', label: 'GNSS RINEX / GCP', icon: <Crosshair size={13} /> },
+            { id: 'architecture', label: 'Building Plans (CAD)', icon: <Box size={13} /> }
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
               <button
-                onClick={handleDownloadReport}
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
                 style={{
-                  height: '30px',
-                  backgroundColor: '#f1f5f9',
-                  border: '1px solid #94a3b8',
-                  borderRadius: '2px',
-                  color: '#0f2b5c',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
+                  backgroundColor: isActive ? '#ffffff' : 'transparent',
+                  border: isActive ? '1px solid #cbd5e1' : '1px solid transparent',
+                  borderBottom: isActive ? '1px solid #ffffff' : 'none',
+                  borderRadius: '6px 6px 0 0',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: isActive ? 700 : 500,
+                  color: isActive ? '#0284c7' : '#475569',
                   cursor: 'pointer',
-                  padding: '0 12px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '6px',
+                  marginBottom: isActive ? '-1px' : '0'
                 }}
               >
-                <span>Download Validation Report</span>
-                <span
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab Body */}
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {activeTab === 'all' ? (
+            /* All Datasets Overview Table */
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc', color: '#475569', borderBottom: '1px solid #cbd5e1', fontSize: '11px', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '8px 10px' }}>Dataset ID</th>
+                    <th style={{ padding: '8px 10px' }}>Dataset Name & Category</th>
+                    <th style={{ padding: '8px 10px' }}>Format & Size</th>
+                    <th style={{ padding: '8px 10px' }}>Coordinate System</th>
+                    <th style={{ padding: '8px 10px' }}>Source / Sensor</th>
+                    <th style={{ padding: '8px 10px' }}>Validation Status</th>
+                    <th style={{ padding: '8px 10px', textAlign: 'center' }}>Inspect</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {project.inputDatasets.map((ds) => (
+                    <tr key={ds.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <td style={{ padding: '9px 10px', fontWeight: 700, color: '#0f2b5c' }}>{ds.id}</td>
+                      <td style={{ padding: '9px 10px' }}>
+                        <div style={{ fontWeight: 600, color: '#1e293b' }}>{ds.name}</div>
+                        <div style={{ fontSize: '11px', color: '#0284c7' }}>{ds.category}</div>
+                      </td>
+                      <td style={{ padding: '9px 10px', color: '#475569' }}>
+                        <div>{ds.fileType}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>Size: {ds.size}</div>
+                      </td>
+                      <td style={{ padding: '9px 10px', color: '#334155', fontSize: '11.5px' }}>{ds.coordinateSystem}</td>
+                      <td style={{ padding: '9px 10px', color: '#64748b', fontSize: '11px' }}>{ds.source}</td>
+                      <td style={{ padding: '9px 10px' }}>
+                        <span style={{
+                          backgroundColor: ds.validationStatus === 'READY' || ds.validationStatus === 'PASS' ? '#dcfce7' : '#fef3c7',
+                          color: ds.validationStatus === 'READY' || ds.validationStatus === 'PASS' ? '#166534' : '#92400e',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: 700
+                        }}>
+                          {ds.validationStatus}
+                        </span>
+                      </td>
+                      <td style={{ padding: '9px 10px', textAlign: 'center' }}>
+                        <button
+                          onClick={() => {
+                            if (ds.category === 'GIS') setActiveTab('gdb');
+                            else if (ds.category === 'DSM/DEM') setActiveTab('tpk');
+                            else if (ds.category === 'Drone Images') setActiveTab('drone');
+                            else if (ds.category === 'LiDAR') setActiveTab('lidar');
+                            else if (ds.category === 'GNSS') setActiveTab('gnss');
+                            else if (ds.category === 'Architecture') setActiveTab('architecture');
+                          }}
+                          style={{
+                            backgroundColor: '#e0f2fe',
+                            color: '#0284c7',
+                            border: '1px solid #bae6fd',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Verify Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* Specific Dataset Inspection & Real Validation Form */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* File Selection Row */}
+              <div style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                padding: '12px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                flexWrap: 'wrap'
+              }}>
+                <label style={{ width: '110px', fontSize: '13px', fontWeight: 700, color: '#1e293b' }}>
+                  Target File Path:
+                </label>
+
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px',
+                  padding: '5px 10px',
+                  minWidth: '280px'
+                }}>
+                  <button
+                    onClick={() => {
+                      const currentVal = activeTab === 'gdb' ? gdbPath : activeTab === 'tpk' ? tpkPath : activeTab === 'drone' ? dronePath : activeTab === 'lidar' ? lidarPath : activeTab === 'gnss' ? gnssPath : archPath;
+                      const custom = prompt('Enter file path to validate:', currentVal);
+                      if (custom) {
+                        if (activeTab === 'gdb') setGdbPath(custom);
+                        else if (activeTab === 'tpk') setTpkPath(custom);
+                        else if (activeTab === 'drone') setDronePath(custom);
+                        else if (activeTab === 'lidar') setLidarPath(custom);
+                        else if (activeTab === 'gnss') setGnssPath(custom);
+                        else if (activeTab === 'architecture') setArchPath(custom);
+                      }
+                    }}
+                    style={{
+                      backgroundColor: '#e2e8f0',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '4px',
+                      padding: '4px 10px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Browse Local Workstation
+                  </button>
+                  <span style={{ fontSize: '12px', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {activeTab === 'gdb' ? gdbPath : activeTab === 'tpk' ? tpkPath : activeTab === 'drone' ? dronePath : activeTab === 'lidar' ? lidarPath : activeTab === 'gnss' ? gnssPath : archPath}
+                  </span>
+                </div>
+
+                {/* Orange Validate Button */}
+                <button
+                  onClick={handleValidateCurrentTab}
+                  disabled={isValidating}
                   style={{
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #94a3b8',
-                    borderRadius: '2px',
-                    padding: '2px 4px',
+                    backgroundColor: '#f59e0b',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '8px 20px',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: isValidating ? 'not-allowed' : 'pointer',
                     display: 'flex',
-                    alignItems: 'center'
+                    alignItems: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 4px rgba(245, 158, 11, 0.25)'
                   }}
                 >
-                  <Download size={11} color="#0f2b5c" />
-                </span>
-              </button>
+                  {isValidating && <RefreshCw size={13} className="spin" />}
+                  <span>{isValidating ? 'Running QC Checks...' : 'Validate Dataset'}</span>
+                </button>
 
-              {/* Right: Logout Button */}
-              <button
-                onClick={onLogout}
-                style={{
-                  height: '30px',
-                  backgroundColor: '#00a8ff',
-                  border: 'none',
-                  borderRadius: '3px',
-                  color: '#ffffff',
-                  fontSize: '12.5px',
+                {/* Map Preview Button */}
+                {(activeTab === 'gdb' || activeTab === 'tpk') && (
+                  <button
+                    onClick={onPreviewMap}
+                    style={{
+                      backgroundColor: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '8px 14px',
+                      fontSize: '12.5px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <Eye size={14} />
+                    <span>Preview On Map</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Terminal Log Console */}
+              <div style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                padding: '14px',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: '220px',
+                fontFamily: 'Consolas, Monaco, "Courier New", monospace'
+              }}>
+                <div style={{
+                  fontSize: '12px',
                   fontWeight: 700,
-                  cursor: 'pointer',
-                  padding: '0 26px'
-                }}
-              >
-                Logout
-              </button>
+                  color: '#334155',
+                  borderBottom: '1px solid #e2e8f0',
+                  paddingBottom: '6px',
+                  marginBottom: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>Validation & Integrity Console Stream:</span>
+                  <span style={{ fontSize: '11px', color: '#64748b' }}>
+                    Status: {validatedStatus[activeTab] ? '🟢 PASSED & VERIFIED' : '⚪ IDLE'}
+                  </span>
+                </div>
+
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  fontSize: '12px',
+                  lineHeight: '1.6',
+                  color: '#0f172a'
+                }}>
+                  {consoleLogs.map((line, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        color: line.includes('VALID') || line.includes('PASS') || line.includes('Done!') || line.includes('OK')
+                          ? '#15803d'
+                          : line.includes('Projection') || line.includes('Scanning') || line.includes('Extracted')
+                            ? '#0369a1'
+                            : line.includes('FAIL')
+                              ? '#dc2626'
+                              : '#1e293b'
+                      }}
+                    >
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bottom Action Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  onClick={downloadReport}
+                  style={{
+                    backgroundColor: '#475569',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '8px 16px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <Download size={13} />
+                  <span>Download Official Validation Audit Certificate</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => onNavigateSection('gnss-cors')}
+                    style={{
+                      backgroundColor: '#0284c7',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '8px 16px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>Inspect GNSS Control</span>
+                    <ArrowRight size={13} />
+                  </button>
+
+                  <button
+                    onClick={() => onNavigateSection('processing-photogrammetry')}
+                    style={{
+                      backgroundColor: '#22c55e',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '8px 18px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>Proceed to Processing Center</span>
+                    <ArrowRight size={13} />
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

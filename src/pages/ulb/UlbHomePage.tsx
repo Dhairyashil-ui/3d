@@ -227,9 +227,9 @@ export const UlbHomePage: React.FC = () => {
             </div>
           </Link>
 
-          {/* Card 2: Committee Formation */}
+          {/* Card 2: Package Ingestion & Team Allocation */}
           <Link
-            to="/ulb/committee-formation"
+            to="/ulb/package-receiving"
             style={{
               backgroundColor: '#ffffff',
               borderRadius: '8px',
@@ -257,14 +257,14 @@ export const UlbHomePage: React.FC = () => {
                   <Users size={22} />
                 </div>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: '#0284c7', background: '#e0f2fe', padding: '2px 8px', borderRadius: '10px' }}>
-                  DoLR Form 1
+                  DoLR Ingestion
                 </span>
               </div>
               <h4 style={{ margin: '0 0 6px 0', fontSize: '16px', color: '#1e293b', fontWeight: 700 }}>
-                Create/Manage Committee
+                Package Ingestion & Team Allocation
               </h4>
               <p style={{ margin: 0, fontSize: '13px', color: '#64748b', lineHeight: '1.4' }}>
-                Form formal urban survey committees, appoint Head of Committee, Committee Assistant, and surveyors.
+                Receive verified 4-package assets from Desktop and allocate Superintending Officer & survey specialists.
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#0284c7', fontSize: '13px', fontWeight: 600, marginTop: '16px' }}>

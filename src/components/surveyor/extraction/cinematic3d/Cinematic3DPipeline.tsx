@@ -55,35 +55,8 @@ class SceneBoundary extends Component<SceneBoundaryProps, SceneBoundaryState> {
     }
 }
 
-function Introduction({ time }: { time: number }) {
-    if (time > 14) return null;
-
-    const titleOpacity = Math.min(1, Math.max(0, (time - 1.3) / 2));
-    const subtitleOpacity = Math.min(1, Math.max(0, (time - 4) / 2));
-    const fade = Math.min(1, Math.max(0, (14 - time) / 4));
-
-    return (
-        <div
-            className="introduction"
-            style={{
-                opacity: fade,
-                background: `rgba(0, 0, 0, ${Math.max(0, 1 - (time - 7) / 5)})`
-            }}
-            aria-hidden="true"
-        >
-            <div className="intro-titles">
-                <span className="intro-kicker" style={{ opacity: titleOpacity }}>
-                    AN AERIAL RECONSTRUCTION EXPERIENCE
-                </span>
-
-                <h1 style={{ opacity: titleOpacity }}>NAKSHA 2.0 DIGITAL SURVEY</h1>
-
-                <p style={{ opacity: subtitleOpacity }}>
-                    AERIAL DATA <span>→</span> DIGITAL REALITY
-                </p>
-            </div>
-        </div>
-    );
+function Introduction() {
+    return null;
 }
 
 interface InspectorProps {
@@ -321,12 +294,12 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
 
             if (event.code === "ArrowRight") {
                 event.preventDefault();
-                transport.forwardLive(5, 8);
+                transport.forwardLive(10, 10);
             }
 
             if (event.code === "ArrowLeft") {
                 event.preventDefault();
-                transport.seek(transport.read().time - 5);
+                transport.seek(Math.max(0, transport.read().time - 10));
             }
 
             if (event.code === "Escape") setAbout(false);
@@ -337,21 +310,7 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
     }, []);
 
     const interactive = stage.id === "inspect";
-    const interfaceVisible = time > 11;
-
-    let visibleCount = pointData.count;
-
-    if (stage.id === "xyz") {
-        visibleCount = Math.floor(8 + stage.progress * 240);
-    } else if (stage.index < 9) {
-        visibleCount = stage.index >= 4 ? 650 : 0;
-    } else if (stage.id === "lidar") {
-        visibleCount = Math.floor(
-            650 + stage.progress * (pointData.count - 650)
-        );
-    } else if (stage.index > 20) {
-        visibleCount = cleanPointCount;
-    }
+    const interfaceVisible = true;
 
     return (
         <main className="experience">
@@ -370,124 +329,67 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
             <div className="top-shade" aria-hidden="true" />
             <div className="bottom-shade" aria-hidden="true" />
 
-            <Introduction time={time} />
-
             {timeline.isFastForwarding && (
                 <div className="live-fast-forward-badge" role="status">
                     <span className="live-ff-icon">⏩</span>
                     <div className="live-ff-content">
-                        <strong>LIVE FAST-FORWARD {timeline.fastForwardRate || 8}×</strong>
-                        <small>CONTINUOUS LIVE STREAM • NO CUT</small>
+                        <strong>FAST-FORWARD {timeline.fastForwardRate || 10}×</strong>
                     </div>
                 </div>
             )}
 
             <div className={`interface ${interfaceVisible ? "visible" : ""}`}>
-                <header className="masthead">
-                    <div className="wordmark">
-                        <span className="survey-mark" aria-hidden="true">⌖</span>
-                        <div>
-                            <strong>NAKSHA 2.0</strong>
-                            <span>DIGITAL SURVEY</span>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <header className="masthead video-masthead">
+                    <div>
                         {onExit && (
                             <button 
                                 onClick={onExit}
                                 style={{
-                                    border: '1px solid rgba(182, 213, 171, 0.3)',
-                                    padding: '6px 14px',
-                                    borderRadius: '4px',
-                                    fontSize: '9px',
+                                    border: '1px solid rgba(182, 213, 171, 0.4)',
+                                    padding: '7px 16px',
+                                    borderRadius: '6px',
+                                    fontSize: '11px',
                                     fontFamily: 'var(--mono)',
-                                    color: '#b2c9bd',
-                                    background: 'rgba(7, 18, 22, 0.7)'
+                                    color: '#d1fae5',
+                                    background: 'rgba(7, 18, 22, 0.85)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    cursor: 'pointer',
+                                    backdropFilter: 'blur(8px)'
                                 }}
                             >
-                                ← EXIT TO SURVEYOR
+                                ← Exit to Surveyor
                             </button>
                         )}
-                        {onComplete && (
-                            <button 
-                                onClick={onComplete}
-                                style={{
-                                    border: '1px solid #16a34a',
-                                    background: '#16a34a',
-                                    padding: '6px 14px',
-                                    borderRadius: '4px',
-                                    fontSize: '9px',
-                                    fontWeight: 700,
-                                    fontFamily: 'var(--mono)',
-                                    color: '#ffffff'
-                                }}
-                            >
-                                INSPECT 3D MODEL →
-                            </button>
-                        )}
-                        <div className="provenance">
-                            <button onClick={() => setAbout(true)}>
-                                <span className="status-dot" />
-                                SIMULATION
-                                <span className="info-symbol">i</span>
-                            </button>
-                            <small>PROCEDURAL DATA / NOT A VALIDATED SURVEY</small>
-                        </div>
                     </div>
-                </header>
 
-                <div className="scene-coordinate">
-                    <span>LOCAL ENGINEERING FRAME</span>
-                    <span>METRES · Y-UP / ENU ADAPTER</span>
-                </div>
+                    {onComplete && (
+                        <button 
+                            onClick={onComplete}
+                            style={{
+                                border: '1px solid #16a34a',
+                                background: '#16a34a',
+                                padding: '7px 16px',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                fontFamily: 'var(--mono)',
+                                color: '#ffffff',
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 8px rgba(22, 163, 74, 0.4)'
+                            }}
+                        >
+                            Inspect 3D Model →
+                        </button>
+                    )}
+                </header>
 
                 {interactive && (
                     <Inspector options={options} setOptions={setOptions} />
                 )}
 
-                <section className="stage-caption" aria-label="Current reconstruction stage">
-                    <div className="eyebrow">
-                        <span className="stage-number">
-                            {String(stage.index + 1).padStart(2, "0")}
-                        </span>
-                        {interactive ? "INTERACTIVE MODE" : "CURRENT STAGE"}
-                    </div>
-
-                    <h2>{stage.name}</h2>
-
-                    <div className="stage-io">
-                        <span><b>IN</b>{stage.input}</span>
-                        <span><b>OUT</b>{stage.output}</span>
-                    </div>
-
-                    {visibleCount > 0 && (
-                        <div className="point-count">
-                            <span className="live-dot" />
-                            {visibleCount.toLocaleString()} DEMONSTRATION POINTS
-                        </div>
-                    )}
-                </section>
-
                 <footer className="transport">
-                    <div className="chapter-track">
-                        {chapters.map((name, index) => {
-                            const first = stages.find(item => item.chapter === index);
-
-                            return (
-                                <button
-                                    key={name}
-                                    className={stage.chapter === index ? "active" : ""}
-                                    onClick={() => first && (first.start > time ? transport.seekLive(first.start, 12) : transport.seek(first.start))}
-                                    title={`Jump to ${name.toLowerCase()}`}
-                                >
-                                    <span>{String(index + 1).padStart(2, "0")}</span>
-                                    {name}
-                                </button>
-                            );
-                        })}
-                    </div>
-
                     <div className="scrubber">
                         <div className="timeline-track">
                             <div
@@ -511,11 +413,7 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
                             value={time}
                             onChange={event => {
                                 const val = Number(event.target.value);
-                                if (val > time + 0.5) {
-                                    transport.seekLive(val, 10);
-                                } else {
-                                    transport.seek(val);
-                                }
+                                transport.seek(val);
                             }}
                             aria-label="Reconstruction timeline"
                             aria-valuetext={`${formatTime(time)}, ${stage.name}`}
@@ -524,8 +422,8 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
 
                     <div className="transport-row">
                         <div className="playback-controls">
-                            <button className="play-button" onClick={() => transport.play()}>
-                                <span>{playing ? "Ⅱ" : "▶"}</span>
+                            <button className="play-button" onClick={() => transport.play()} title={playing ? "Pause" : "Play"}>
+                                <span>{playing ? "❚❚" : "▶"}</span>
                                 {playing ? "PAUSE" : "PLAY"}
                             </button>
 
@@ -533,42 +431,45 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
                                 className={rate === 0.35 ? "selected" : ""}
                                 onClick={() => transport.rate(0.35)}
                                 aria-pressed={rate === 0.35}
+                                title="Slow motion (0.35×)"
                             >
-                                SLOW
+                                0.35×
                             </button>
 
                             <button
-                                className={rate === 1 ? "selected" : ""}
+                                className={rate === 1 && !timeline.isFastForwarding ? "selected" : ""}
                                 onClick={() => transport.rate(1)}
                                 aria-pressed={rate === 1}
+                                title="Normal speed (1×)"
                             >
-                                NORMAL
+                                1×
                             </button>
 
                             <span className="control-divider" />
 
                             <button
-                                onClick={() => transport.forwardLive(5, 8)}
-                                title="Speed up forward by 5s live without cut"
+                                className={timeline.isFastForwarding ? "selected ff-active" : ""}
+                                onMouseDown={() => transport.startHoldingFastForward(10)}
+                                onMouseUp={() => transport.stopHoldingFastForward()}
+                                onMouseLeave={() => transport.stopHoldingFastForward()}
+                                onTouchStart={() => transport.startHoldingFastForward(10)}
+                                onTouchEnd={() => transport.stopHoldingFastForward()}
+                                onClick={() => transport.forwardLive(10, 10)}
+                                title="Fast Forward 10× (Click for +10s, or hold for continuous 10× speed)"
                             >
-                                +5s ⏩
+                                <span>⏩</span> 10× FAST FWD
                             </button>
 
                             <button
-                                className={timeline.isFastForwarding ? "selected" : ""}
-                                onMouseDown={() => transport.startHoldingFastForward(8)}
-                                onMouseUp={() => transport.stopHoldingFastForward()}
-                                onMouseLeave={() => transport.stopHoldingFastForward()}
-                                onTouchStart={() => transport.startHoldingFastForward(8)}
-                                onTouchEnd={() => transport.stopHoldingFastForward()}
                                 onClick={() => transport.forwardLive(10, 10)}
-                                title="Click for +10s live forward burst, or hold for continuous fast-forward"
+                                title="Jump forward 10 seconds"
                             >
-                                <span>▶▶</span> FAST FWD
+                                +10s ⏩
                             </button>
 
-                            <button onClick={() => transport.step()}>STEP</button>
-                            <button onClick={() => transport.skip()} title="Fast-forward live to next stage">SKIP STAGE →</button>
+                            <button onClick={() => transport.skip()} title="Fast-forward live to next stage">
+                                ⏭ SKIP
+                            </button>
                         </div>
 
                         <div className="timecode">
@@ -576,23 +477,16 @@ export const Cinematic3DPipeline: React.FC<Cinematic3DPipelineProps> = ({
                         </div>
 
                         <div className="secondary-controls">
-                            <button onClick={() => transport.restart()}>RESTART</button>
-                            <button onClick={() => transport.camera()}>
-                                CAMERA / {camera === "cinematic" ? "DIRECTED" : "FREE"}
+                            <button onClick={() => transport.restart()} title="Restart from beginning">
+                                ↺ RESTART
+                            </button>
+                            <button onClick={() => transport.camera()} title="Toggle camera angle">
+                                🎥 {camera === "cinematic" ? "DIRECTED" : "FREE"}
                             </button>
                         </div>
                     </div>
                 </footer>
             </div>
-
-            {!interfaceVisible && (
-                <button
-                    className="skip-intro"
-                    onClick={() => transport.seek(14)}
-                >
-                    ENTER SURVEY →
-                </button>
-            )}
 
             {about && <About close={() => setAbout(false)} />}
 

@@ -30,6 +30,7 @@ import { DesktopAppPage } from './pages/desktop/DesktopAppPage';
 // ULB Admin Pages matching NAKSHA ULB Admin Video Tutorial (Maharashtra / Pune District / PMRDA Pune)
 import { UlbHomePage } from './pages/ulb/UlbHomePage';
 import { UlbDashboardPage } from './pages/ulb/UlbDashboardPage';
+import { UlbPackageReceivingPage } from './pages/ulb/UlbPackageReceivingPage';
 import { UlbCommitteeFormationPage } from './pages/ulb/UlbCommitteeFormationPage';
 import { UlbCreateSurveyUnitPage } from './pages/ulb/UlbCreateSurveyUnitPage';
 import { UlbManageDepartmentPage } from './pages/ulb/UlbManageDepartmentPage';
@@ -69,6 +70,11 @@ export function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Direct Dedicated 3D Video Experience Routes for Vercel Deployment */}
+        <Route path="/video" element={<Cinematic3DPipeline onExit={() => window.location.href = '/'} />} />
+        <Route path="/3d" element={<Cinematic3DPipeline onExit={() => window.location.href = '/'} />} />
+        <Route path="/presentation" element={<Cinematic3DPipeline onExit={() => window.location.href = '/'} />} />
+
         {/* 1. Public Landing Portal */}
         <Route path="/" element={<PublicPortalPage />} />
 
@@ -84,7 +90,8 @@ export function App() {
           <Route index element={<Navigate to="/ulb/home" replace />} />
           <Route path="home" element={<UlbHomePage />} />
           <Route path="dashboard" element={<UlbDashboardPage />} />
-          <Route path="committee-formation" element={<UlbCommitteeFormationPage />} />
+          <Route path="package-receiving" element={<UlbPackageReceivingPage />} />
+          <Route path="committee-formation" element={<UlbPackageReceivingPage />} />
           <Route path="create-survey-unit" element={<UlbCreateSurveyUnitPage />} />
 
           {/* Master / User Management Submodule */}

@@ -21,18 +21,18 @@ interface PublicationItem {
 const INITIAL_PUBLICATIONS: PublicationItem[] = [
   {
     id: 'pub-1',
-    villageColony: 'Ward 12 - Hinjawadi Phase 1',
-    surveyUnit: 'Survey Unit 1 (SU-HINJ-01)',
-    totalPlots: 29,
-    gtCompleted: 6,
-    gtPending: 23,
-    rorCompleted: 0,
-    rorPending: 20,
-    caseNumber: '12/PMRDA/2025',
-    firstPublicationRecord: '04-07-2025',
+    villageColony: 'Ward 12 - Hinjawadi Phase 1 (PMRDA)',
+    surveyUnit: 'PPCRC Institutional & Tech Complex (CTS 342/1)',
+    totalPlots: 24,
+    gtCompleted: 24,
+    gtPending: 0,
+    rorCompleted: 24,
+    rorPending: 0,
+    caseNumber: 'PMRDA/3D-SURVEY/2026/0410',
+    firstPublicationRecord: '22-09-2026',
     finalPublicationRecord: '-',
-    status: 'Received For Provisional Publication',
-    remark: 'Verified by PMRDA Planning Inspector'
+    status: 'Verified by Surveyor (Ready for BhuNaksha Transmission)',
+    remark: 'Verified by Superintending Officer Dr. Rajesh Deshmukh & 3D Model Attached'
   },
   {
     id: 'pub-2',

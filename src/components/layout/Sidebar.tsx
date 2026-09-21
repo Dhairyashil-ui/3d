@@ -556,14 +556,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed = false }) => {
               {!collapsed && <span>Dashboard</span>}
             </NavLink>
 
-            {/* 3. Create/Manage Committee */}
+            {/* 3. Package Ingestion & Team Allocation */}
             <NavLink
-              to="/ulb/committee-formation"
+              to="/ulb/package-receiving"
               className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
               style={({ isActive }) => getLinkStyle(isActive)}
             >
-              <Users size={18} />
-              {!collapsed && <span>Create/Manage Committee</span>}
+              <FileSpreadsheet size={18} />
+              {!collapsed && <span>Package Ingestion & Team</span>}
             </NavLink>
 
             {/* 4. Create Survey Unit */}
