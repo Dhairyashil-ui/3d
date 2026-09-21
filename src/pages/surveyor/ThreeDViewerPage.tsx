@@ -27,12 +27,12 @@ import {
 export const ThreeDViewerPage: React.FC = () => {
   // Input states: 14-Digit ULPIN and Building-Floor-Area-Room Unit ID (Hinjawadi, Pune)
   const [ulpinInput, setUlpinInput] = useState('27250401420089');
-  const [buildingIdInput, setBuildingIdInput] = useState('0089-01-01-119');
+  const [buildingIdInput, setBuildingIdInput] = useState('0089-01-01-109');
   
   // Pipeline progression states:
   // Starts from the beginning: First comes map, then zooms into property, then opens 3D Digital Twin
   const [appState, setAppState] = useState<'initial_map' | 'zooming_to_prop' | 'twin_active'>('initial_map');
-  const [targetRoom, setTargetRoom] = useState('A-119');
+  const [targetRoom, setTargetRoom] = useState('A-109');
   const [currentDisplayMode, setCurrentDisplayMode] = useState<DisplayMode>('realistic');
 
   // Search box minimization: visible on initial map, minimized during 3D twin inspection
@@ -41,13 +41,13 @@ export const ThreeDViewerPage: React.FC = () => {
   // Property Details visibility: appears when camera reaches door without changing frame
   const [showDetailsPanel, setShowDetailsPanel] = useState(false);
 
-  // Parse room code from Building Unit ID (e.g. "0089-01-01-119" or "A-119" -> "A-119")
+  // Parse room code from Building Unit ID (e.g. "0089-01-01-109" or "A-109" -> "A-109")
   const parseRoomFromId = (input: string) => {
     const match = input.match(/([1-5][0-9]{2})/);
     if (match) {
       return `A-${match[1]}`;
     }
-    return 'A-119';
+    return 'A-109';
   };
 
   // Direct URL Inspection: supports ?model=1 to force direct 3D model or ?search=1 for auto-fly
@@ -57,7 +57,7 @@ export const ThreeDViewerPage: React.FC = () => {
       setAppState('twin_active');
       setSearchMinimized(true);
     } else if (params.get('search') === '1') {
-      const roomParam = params.get('room') || 'A-119';
+      const roomParam = params.get('room') || 'A-109';
       setTargetRoom(roomParam);
       setAppState('zooming_to_prop');
       setSearchMinimized(true);
@@ -299,7 +299,7 @@ export const ThreeDViewerPage: React.FC = () => {
                   type="text"
                   value={buildingIdInput}
                   onChange={(e) => setBuildingIdInput(e.target.value)}
-                  placeholder="0089-01-01-119"
+                  placeholder="0089-01-01-109"
                   style={{
                     width: '100%',
                     padding: '6px 0',
@@ -413,7 +413,7 @@ export const ThreeDViewerPage: React.FC = () => {
               Hinjawadi, Pune — PPCRC Building 3D Cadastre
             </div>
             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-              ULPIN: 27250401420089 • Unit: 0089-01-01-119 (Room A-119)
+              ULPIN: 27250401420089 • Unit: 0089-01-01-109 (Room A-109)
             </div>
           </div>
 

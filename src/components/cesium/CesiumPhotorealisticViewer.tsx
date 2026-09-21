@@ -1,4 +1,4 @@
-﻿// NAKSHA V2.0 â€” Authoritative 3D Geospatial Digital Twin Implementation
+// NAKSHA V2.0 â€” Authoritative 3D Geospatial Digital Twin Implementation
 // Administrative Authority: Pune Metropolitan Region Development Authority (PMRDA)
 // Jurisdiction: Hinjawadi Phase 1 Special Planning Unit (ULB-PMRDA-HINJ-01)
 // Base World: Google Maps Platform Photorealistic 3D Tiles via CesiumJS

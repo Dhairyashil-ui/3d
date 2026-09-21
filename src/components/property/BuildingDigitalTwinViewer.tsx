@@ -36,36 +36,38 @@ export interface RoomDoorGeometry {
 export function getRoomDoorGeometry(roomCode: string): RoomDoorGeometry {
   const digits = roomCode.replace(/[^0-9]/g, '');
   const f = Math.min(Math.max(parseInt(digits[0] || '1', 10), 1), 5);
-  const r = parseInt(digits.slice(1) || '19', 10);
+  let r = parseInt(digits.slice(1) || '9', 10);
+  if (r >= 11 && r <= 19) r = r - 10; // Support legacy 11..19 mapping to 1..9
+  if (r < 1 || r > 9) r = 9;
 
   const floorBaseY = (f - 1) * 4.2;
   const midY = floorBaseY + 1.23; // Exact middle of 2.44m door leaves
 
-  let midX = 11.47;
+  let midX = 11.28;
   let midZ = -7.40;
   let normal = new THREE.Vector3(-1, 0, 0); // Faces -X into corridor
 
-  if (r >= 11 && r <= 13) {
+  if (r >= 1 && r <= 3) {
     // Left Gallery (faces +X into corridor)
-    midX = -11.47;
+    midX = -11.28;
     normal = new THREE.Vector3(1, 0, 0);
-    if (r === 11) midZ = -7.40;
-    else if (r === 12) midZ = -12.60;
-    else if (r === 13) midZ = -17.80;
-  } else if (r >= 14 && r <= 16) {
+    if (r === 1) midZ = -7.40;
+    else if (r === 2) midZ = -12.60;
+    else if (r === 3) midZ = -17.80;
+  } else if (r >= 4 && r <= 6) {
     // Rear Gallery (faces +Z into corridor)
     normal = new THREE.Vector3(0, 0, 1);
-    midZ = -24.07;
-    if (r === 14) midX = -5.50;
-    else if (r === 15) midX = 0.00;
-    else if (r === 16) midX = 5.50;
+    midZ = -23.89;
+    if (r === 4) midX = -5.50;
+    else if (r === 5) midX = 0.00;
+    else if (r === 6) midX = 5.50;
   } else {
-    // Right Gallery (faces -X into corridor, includes A-119)
-    midX = 11.47;
+    // Right Gallery (faces -X into corridor, includes A-109)
+    midX = 11.28;
     normal = new THREE.Vector3(-1, 0, 0);
-    if (r === 17) midZ = -17.80;
-    else if (r === 18) midZ = -12.60;
-    else if (r === 19) midZ = -7.40;
+    if (r === 7) midZ = -17.80;
+    else if (r === 8) midZ = -12.60;
+    else if (r === 9) midZ = -7.40;
   }
 
   return {
@@ -75,6 +77,60 @@ export function getRoomDoorGeometry(roomCode: string): RoomDoorGeometry {
     normal
   };
 }
+
+export type CameraPresetKey = 'front' | 'portico' | 'atrium' | 'atriumDome' | 'aerial';
+
+export interface CameraPresetConfig {
+  name: string;
+  icon: string;
+  pos: [number, number, number];
+  target: [number, number, number];
+  fov: number;
+  desc: string;
+}
+
+export const CAMERA_PRESETS: Record<CameraPresetKey, CameraPresetConfig> = {
+  front: {
+    name: 'Front Elevation',
+    icon: '📐',
+    pos: [0.0, 9.5, 35.0],
+    target: [0.0, 9.5, -4.0],
+    fov: 44,
+    desc: 'Orthographic architectural elevation of front entrance, portico and roof pediment'
+  },
+  portico: {
+    name: 'Portico & Steps',
+    icon: '🏛️',
+    pos: [0.0, 2.6, 16.5],
+    target: [0.0, 3.4, 2.0],
+    fov: 52,
+    desc: 'Monumental entrance steps, paired columns, stone ramp and archways'
+  },
+  atrium: {
+    name: 'Atrium Inlay',
+    icon: '🏺',
+    pos: [0.0, 16.5, 2.0],
+    target: [0.0, 0.2, -12.6],
+    fov: 56,
+    desc: 'Central courtyard terracotta floor medallion, potted plants & gallery tiers (IMG-20260902-WA0014.jpg)'
+  },
+  atriumDome: {
+    name: 'Skylight Dome',
+    icon: '☀️',
+    pos: [0.0, 1.65, -12.6],
+    target: [0.0, 25.0, -12.6],
+    fov: 70,
+    desc: 'Look directly up at the fluted conical skylight dome and 6 gallery tiers (IMG-20260902-WA0074.jpg)'
+  },
+  aerial: {
+    name: 'Campus Aerial',
+    icon: '🛰️',
+    pos: [-28.0, 26.0, 52.0],
+    target: [0.0, 7.0, -8.0],
+    fov: 50,
+    desc: 'Campus forecourt, asphalt approach road, native Indian trees & boundary'
+  }
+};
 
 interface RoomDoorRecord {
   roomCode: string;
@@ -87,7 +143,7 @@ interface RoomDoorRecord {
 }
 
 interface BuildingDigitalTwinViewerProps {
-  targetRoomNumber: string; // e.g. "A-119"
+  targetRoomNumber: string; // e.g. "A-109"
   isActive: boolean;
   onConstructionComplete?: () => void;
   onArrivedAtRoom?: (room: string) => void;
@@ -254,6 +310,317 @@ function createAtriumFloorTexture(): THREE.CanvasTexture {
   texture.anisotropy = 16;
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+// ---------------------------------------------------------------------------
+// Atmospheric Overcast Daylight Sky Canvas Texture (Equirectangular)
+// Matches authentic real survey photograph (Screenshot 2026-09-06 220315.png):
+// Neutral pearlescent overcast cloud deck, zero blue wash, soft luminous horizon
+// ---------------------------------------------------------------------------
+function createAtmosphericSkyTexture(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 1024;
+  cv.height = 1024;
+  const ctx = cv.getContext('2d')!;
+  const grad = ctx.createLinearGradient(0, 0, 0, 1024);
+  // Neutral overcast cloudy daylight gradient matching real survey photograph (no orange/brown tint)
+  grad.addColorStop(0.00, '#8f9aa3'); // Soft neutral overcast cool-grey zenith
+  grad.addColorStop(0.20, '#b0b9c1'); // Diffuse overcast cloud layer
+  grad.addColorStop(0.38, '#cbd2d8'); // Neutral cloudy sky above roofline
+  grad.addColorStop(0.48, '#dce0e4'); // Soft luminous overcast haze at horizon
+  grad.addColorStop(0.50, '#e2e5e8'); // Luminous cloudy horizon
+  grad.addColorStop(0.53, '#9d9c96'); // Just below horizon - neutral concrete/stone earth bounce
+  grad.addColorStop(0.70, '#666560'); // Neutral pavement ground bounce tone
+  grad.addColorStop(1.00, '#383632'); // Neutral nadir earth
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1024, 1024);
+
+  // Soft neutral diffuse solar aura behind overcast cloud deck (no orange/warm cast)
+  const sunGrad = ctx.createRadialGradient(300, 240, 20, 300, 240, 320);
+  sunGrad.addColorStop(0.0, 'rgba(250, 252, 255, 0.22)');
+  sunGrad.addColorStop(0.35, 'rgba(240, 244, 248, 0.08)');
+  sunGrad.addColorStop(1.0, 'rgba(235, 240, 245, 0.0)');
+  ctx.fillStyle = sunGrad;
+  ctx.fillRect(0, 0, 1024, 1024);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// ---------------------------------------------------------------------------
+// Forecourt Stone Paving PBR Texture - Neutral Weathered Slabs
+// ---------------------------------------------------------------------------
+function createForecourtPavingTexture(): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } {
+  const sz = 1024;
+  const cv = document.createElement('canvas');
+  cv.width = sz;
+  cv.height = sz;
+  const ctx = cv.getContext('2d')!;
+
+  const bumpCv = document.createElement('canvas');
+  bumpCv.width = sz;
+  bumpCv.height = sz;
+  const bumpCtx = bumpCv.getContext('2d')!;
+
+  // Dark joint grout base
+  ctx.fillStyle = '#262729';
+  ctx.fillRect(0, 0, sz, sz);
+  bumpCtx.fillStyle = '#000000';
+  bumpCtx.fillRect(0, 0, sz, sz);
+
+  const cols = 16;
+  const rows = 16;
+  const sw = sz / cols;
+  const sh = sz / rows;
+
+  // Neutral weathered stone and concrete paving slabs matching real survey photograph (zero brown wash)
+  const slabColors = [
+    '#abaaa4', '#b5b4ad', '#a09f98', '#bcbbb4', 
+    '#97968f', '#a9a8a1', '#bebcb5', '#a4a39c',
+    '#9c9b94', '#b3b2ab', '#919089', '#adaea7'
+  ];
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = c * sw + 1.5;
+      const y = r * sh + 1.5;
+      const w = sw - 3.0;
+      const h = sh - 3.0;
+
+      const idx = (r * 13 + c * 29) % slabColors.length;
+      ctx.fillStyle = slabColors[idx];
+      ctx.fillRect(x, y, w, h);
+
+      bumpCtx.fillStyle = '#d0d0d0';
+      bumpCtx.fillRect(x, y, w, h);
+
+      // Micro surface noise for stone grain
+      const img = ctx.getImageData(x, y, w, h);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 14;
+        d[i] = Math.min(255, Math.max(0, d[i] + n));
+        d[i+1] = Math.min(255, Math.max(0, d[i+1] + n));
+        d[i+2] = Math.min(255, Math.max(0, d[i+2] + n));
+      }
+      ctx.putImageData(img, x, y);
+    }
+  }
+
+  // Weathering, tire and footpaths
+  ctx.fillStyle = 'rgba(28, 30, 32, 0.08)';
+  ctx.fillRect(sz * 0.38, 0, sz * 0.24, sz);
+
+  const map = new THREE.CanvasTexture(cv);
+  map.wrapS = THREE.RepeatWrapping;
+  map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(10, 10);
+  map.colorSpace = THREE.SRGBColorSpace;
+
+  const bumpMap = new THREE.CanvasTexture(bumpCv);
+  bumpMap.wrapS = THREE.RepeatWrapping;
+  bumpMap.wrapT = THREE.RepeatWrapping;
+  bumpMap.repeat.set(10, 10);
+
+  return { map, bumpMap };
+}
+
+// ---------------------------------------------------------------------------
+// Asphalt Approach Road Texture
+// ---------------------------------------------------------------------------
+function createAsphaltRoadTexture(): THREE.CanvasTexture {
+  const sz = 512;
+  const cv = document.createElement('canvas');
+  cv.width = sz;
+  cv.height = sz;
+  const ctx = cv.getContext('2d')!;
+
+  ctx.fillStyle = '#26292c';
+  ctx.fillRect(0, 0, sz, sz);
+
+  const img = ctx.getImageData(0, 0, sz, sz);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const grain = (Math.random() - 0.5) * 26;
+    d[i] = Math.min(255, Math.max(0, d[i] + grain));
+    d[i+1] = Math.min(255, Math.max(0, d[i+1] + grain));
+    d[i+2] = Math.min(255, Math.max(0, d[i+2] + grain * 1.05));
+  }
+  ctx.putImageData(img, 0, 0);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 12);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// ---------------------------------------------------------------------------
+// Soft Contact Shadow Texture (Radial Gaussian Falloff)
+// ---------------------------------------------------------------------------
+function createContactShadowTexture(): THREE.CanvasTexture {
+  const sz = 256;
+  const cv = document.createElement('canvas');
+  cv.width = sz;
+  cv.height = sz;
+  const ctx = cv.getContext('2d')!;
+
+  const cx = sz / 2;
+  const cy = sz / 2;
+  const grad = ctx.createRadialGradient(cx, cy, sz * 0.12, cx, cy, sz * 0.48);
+  grad.addColorStop(0.0, 'rgba(8, 10, 12, 0.70)');
+  grad.addColorStop(0.45, 'rgba(12, 14, 16, 0.42)');
+  grad.addColorStop(0.80, 'rgba(16, 18, 20, 0.12)');
+  grad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, sz, sz);
+
+  const tex = new THREE.CanvasTexture(cv);
+  return tex;
+}
+
+// ---------------------------------------------------------------------------
+// Assemble Campus Environment (Forecourt Paving, Road, Contact Shadows, Circular Monument Curb, Boundary)
+// All trees removed per user instruction.
+// ---------------------------------------------------------------------------
+function createCampusEnvironment(): THREE.Group {
+  const envGroup = new THREE.Group();
+  envGroup.name = 'campusEnvironment';
+
+  const { map: pavingMap, bumpMap: pavingBump } = createForecourtPavingTexture();
+  const roadTex = createAsphaltRoadTexture();
+  const contactTex = createContactShadowTexture();
+
+  // 1. Monumental Paved Forecourt (Y = -0.90)
+  const pavingGeo = new THREE.PlaneGeometry(160, 160);
+  const pavingMat = new THREE.MeshStandardMaterial({
+    map: pavingMap,
+    bumpMap: pavingBump,
+    bumpScale: 0.035,
+    roughness: 0.88,
+    metalness: 0.02
+  });
+  const pavingMesh = new THREE.Mesh(pavingGeo, pavingMat);
+  pavingMesh.rotation.x = -Math.PI / 2;
+  pavingMesh.position.set(0, -0.90, 0);
+  pavingMesh.receiveShadow = true;
+  envGroup.add(pavingMesh);
+
+  // 2. Asphalt Approach Roadway & Curbing (from left approach into forecourt)
+  const roadGeo = new THREE.PlaneGeometry(36, 120);
+  const roadMat = new THREE.MeshStandardMaterial({
+    map: roadTex,
+    roughness: 0.94,
+    metalness: 0.01
+  });
+  const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+  roadMesh.rotation.x = -Math.PI / 2;
+  roadMesh.rotation.z = Math.PI * 0.08;
+  roadMesh.position.set(-46, -0.885, 24);
+  roadMesh.receiveShadow = true;
+  envGroup.add(roadMesh);
+
+  // Concrete Curb Borders
+  const curbMat = new THREE.MeshStandardMaterial({ color: 0x94928e, roughness: 0.90 });
+  const curb1 = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 120), curbMat);
+  curb1.position.set(-28, -0.81, 24);
+  curb1.rotation.y = -Math.PI * 0.08;
+  curb1.castShadow = true;
+  curb1.receiveShadow = true;
+  envGroup.add(curb1);
+
+  // 3. Contact Shadow Plane directly under the building base
+  const shadowGeo = new THREE.PlaneGeometry(48, 38);
+  const shadowMat = new THREE.MeshBasicMaterial({
+    map: contactTex,
+    transparent: true,
+    opacity: 0.82,
+    depthWrite: false
+  });
+  const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+  shadowMesh.rotation.x = -Math.PI / 2;
+  shadowMesh.position.set(0, -0.88, -12);
+  envGroup.add(shadowMesh);
+
+  // 4. Circular Forecourt Planter / Fountain Curb (matches real photograph Screenshot 2026-09-06 220315.png foreground)
+  const curbGroup = new THREE.Group();
+  const ringGeo = new THREE.CylinderGeometry(3.6, 3.9, 0.48, 36);
+  const monCurbMat = new THREE.MeshStandardMaterial({ color: 0x767470, roughness: 0.88 });
+  const ringMesh = new THREE.Mesh(ringGeo, monCurbMat);
+  ringMesh.position.set(0, -0.66, 17.5);
+  ringMesh.castShadow = true;
+  ringMesh.receiveShadow = true;
+  curbGroup.add(ringMesh);
+
+  const innerCapGeo = new THREE.CylinderGeometry(3.2, 3.2, 0.16, 36);
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x8a8882, roughness: 0.84 });
+  const innerCap = new THREE.Mesh(innerCapGeo, capMat);
+  innerCap.position.set(0, -0.40, 17.5);
+  innerCap.receiveShadow = true;
+  curbGroup.add(innerCap);
+
+  // Circular coping rim stones matching real photo foreground
+  const rimGeo = new THREE.TorusGeometry(3.55, 0.14, 12, 36);
+  const rimMat = new THREE.MeshStandardMaterial({ color: 0x6e6c68, roughness: 0.90 });
+  const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+  rimMesh.rotation.x = Math.PI / 2;
+  rimMesh.position.set(0, -0.40, 17.5);
+  rimMesh.castShadow = true;
+  curbGroup.add(rimMesh);
+
+  // Flanking low stone benches seen on left and right foreground in survey photo
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0xa8a6a0, roughness: 0.86 });
+  const benchL = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.46, 1.4), benchMat);
+  benchL.position.set(-16.5, -0.67, 18.0);
+  benchL.castShadow = true;
+  benchL.receiveShadow = true;
+  curbGroup.add(benchL);
+
+  const benchR = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.46, 1.4), benchMat);
+  benchR.position.set(16.5, -0.67, 18.0);
+  benchR.castShadow = true;
+  benchR.receiveShadow = true;
+  curbGroup.add(benchR);
+
+  envGroup.add(curbGroup);
+
+  // 5. Campus Boundary Wall & Gate Piers framing the forecourt
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xccc8be, roughness: 0.90 });
+  const copingMat = new THREE.MeshStandardMaterial({ color: 0x8c8880, roughness: 0.88 });
+
+  const createWallSection = (x: number, z: number, len: number) => {
+    const wallBody = new THREE.Mesh(new THREE.BoxGeometry(len, 1.4, 0.35), wallMat);
+    wallBody.position.set(x, -0.20, z);
+    wallBody.castShadow = true;
+    wallBody.receiveShadow = true;
+    envGroup.add(wallBody);
+
+    const coping = new THREE.Mesh(new THREE.BoxGeometry(len, 0.12, 0.45), copingMat);
+    coping.position.set(x, 0.52, z);
+    coping.castShadow = true;
+    envGroup.add(coping);
+  };
+
+  createWallSection(-42, 42, 54);
+  createWallSection(42, 42, 54);
+
+  // Entrance gate pillars
+  const pierMat = new THREE.MeshStandardMaterial({ color: 0xd6d2c8, roughness: 0.86 });
+  const createPier = (px: number) => {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.6, 1.2), pierMat);
+    p.position.set(px, 0.40, 42);
+    p.castShadow = true;
+    p.receiveShadow = true;
+    envGroup.add(p);
+  };
+  createPier(-14);
+  createPier(14);
+
+  return envGroup;
 }
 
 // ---------------------------------------------------------------------------
@@ -425,8 +792,8 @@ function createMicroPointCloudMesh(): { points: THREE.Points; origPositions: Flo
   for (let f = 1; f <= 5; f++) {
     const fy = (f - 1) * 4.2;
     for (let dy = 0; dy <= 2.44; dy += 0.3) {
-      for (let r = 11; r <= 19; r++) {
-        const geom = getRoomDoorGeometry(`A-${f}${r}`);
+      for (let r = 1; r <= 9; r++) {
+        const geom = getRoomDoorGeometry(`A-${f}0${r}`);
         pts.push(geom.doorMidPos.x + (Math.random() - 0.5) * 1.6, fy + dy, geom.doorMidPos.z + (Math.random() - 0.5) * 0.2);
         colors.push(colGold.r, colGold.g, colGold.b);
       }
@@ -491,7 +858,7 @@ function createTileWaveRing(): THREE.Mesh {
 }
 
 export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps> = ({
-  targetRoomNumber = 'A-119',
+  targetRoomNumber = 'A-109',
   isActive,
   onConstructionComplete,
   onArrivedAtRoom,
@@ -533,6 +900,7 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
   const [selectedFloor, setSelectedFloor] = useState<string>('all');
   const [showPointCloudSegmentation, setShowPointCloudSegmentation] = useState(false); // Dots visible only after clicking
   const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [activeCameraPreset, setActiveCameraPreset] = useState<CameraPresetKey>('front');
 
   // Dynamic Proximity Detection: shows room mark on door mid when near, hides when > 5.5m
   const [proximityRoom, setProximityRoom] = useState<{ 
@@ -553,48 +921,26 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     const scene = new THREE.Scene();
     sceneRef.current = scene;
     
-    // Atmospheric Nishita Daylight Sky matching front_reconstruction.png
-    const createAtmosphericSky = (): THREE.CanvasTexture => {
-      const cv = document.createElement('canvas');
-      cv.width = 1024;
-      cv.height = 1024;
-      const ctx = cv.getContext('2d')!;
-      const grad = ctx.createLinearGradient(0, 0, 0, 1024);
-      // Beautiful Nishita Daylight Sky matching front_reconstruction.png:
-      // Equirectangular mapping: Y=0 is zenith (+90°), Y=512 is horizon (0°), Y=1024 is nadir (-90°)
-      grad.addColorStop(0.00, '#78aee4'); // Deep azure zenith
-      grad.addColorStop(0.20, '#93c2ec'); // Mid-upper sky
-      grad.addColorStop(0.36, '#b4d6f3'); // Sky angle right behind building roof (+25°)
-      grad.addColorStop(0.46, '#d9eaf7'); // Soft atmospheric haze right above horizon
-      grad.addColorStop(0.50, '#f2f7fc'); // Luminous horizon
-      grad.addColorStop(0.54, '#e4ebf2'); // Below horizon ground haze
-      grad.addColorStop(1.00, '#7e786e'); // Diffuse ground reflection tone
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, 1024, 1024);
-      const tex = new THREE.CanvasTexture(cv);
-      tex.mapping = THREE.EquirectangularReflectionMapping;
-      tex.colorSpace = THREE.SRGBColorSpace;
-      return tex;
-    };
-
-    const skyTex = createAtmosphericSky();
+    // Atmospheric Nishita Daylight Sky with Rayleigh haze and solar halo
+    const skyTex = createAtmosphericSkyTexture();
     scene.background = skyTex;
     scene.environment = skyTex;
-    scene.fog = new THREE.Fog('#edf5fc', 220, 800);
+    // Neutral Overcast Fog matching cloudy sky horizon (zero brown or blue tint)
+    scene.fog = new THREE.Fog('#cbd2d8', 150, 600);
 
-    // Frame entire building vertically from steps to roof parapet with margins
+    // Architectural Front Elevation Camera Perspective (Orthographic view of front entrance, portico and roof pediment)
     const aspect = width / height;
-    const camera = new THREE.PerspectiveCamera(48, aspect, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(44, aspect, 0.1, 1000);
     cameraRef.current = camera;
-    camera.position.set(3.4, 1.80, 36.5); // Perfectly framed front elevation
-    camera.lookAt(0.174, 11.20, 1.50);
+    camera.position.set(0.0, 9.5, 35.0);
+    camera.lookAt(0.0, 9.5, -4.0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     rendererRef.current = renderer;
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.08; // Natural exposure for neutral overcast daylight
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
@@ -603,70 +949,67 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     controlsRef.current = controls;
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.target.set(0.174, 11.20, 1.50);
+    controls.target.set(0.0, 9.5, -4.0);
     controls.maxPolarAngle = Math.PI / 2 + 0.04;
     controls.enabled = true;
 
-    // --- Atmospheric Daylight Lighting matching front_reconstruction.png ---
-    // Primary directional sunlight matching Blender Cycles sun (elevation 42°, azimuth upper left)
-    const sunLight = new THREE.DirectionalLight(0xfffaee, 1.95);
-    sunLight.position.set(-28, 44, 32);
-    sunLight.target.position.set(0, 8, -6);
+    // --- Neutral Overcast Daylight Lighting matching real survey reference photograph ---
+    // Soft diffuse overcast sunlight — neutral white daylight without orange/brown color grading
+    const sunLight = new THREE.DirectionalLight(0xf4f6f8, 1.15);
+    sunLight.position.set(-24, 42, 26);
+    sunLight.target.position.set(0, 7.5, -6);
     scene.add(sunLight.target);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.width = 4096;
     sunLight.shadow.mapSize.height = 4096;
-    sunLight.shadow.camera.left = -38;
-    sunLight.shadow.camera.right = 38;
-    sunLight.shadow.camera.top = 34;
-    sunLight.shadow.camera.bottom = -18;
-    sunLight.shadow.camera.near = 5;
-    sunLight.shadow.camera.far = 160;
-    sunLight.shadow.bias = -0.0002;
-    sunLight.shadow.normalBias = 0.025;
+    sunLight.shadow.camera.left = -25;
+    sunLight.shadow.camera.right = 25;
+    sunLight.shadow.camera.top = 28;
+    sunLight.shadow.camera.bottom = -8;
+    sunLight.shadow.camera.near = 8;
+    sunLight.shadow.camera.far = 90;
+    sunLight.shadow.bias = -0.00012;
+    sunLight.shadow.normalBias = 0.032;
     scene.add(sunLight);
 
-    // Soft open-sky daylight + subtle warm ground bounce
-    const hemiLight = new THREE.HemisphereLight(0xc8e0f7, 0x6e665d, 0.58);
+    // Neutral overcast sky fill light — soft cool grey sky, neutral pavement bounce (zero brown ground)
+    const hemiLight = new THREE.HemisphereLight(0xe2e6ea, 0x908e88, 0.62);
     scene.add(hemiLight);
 
-    // Cool open-sky atmospheric fill from upper right
-    const skyFill = new THREE.DirectionalLight(0xadd0f2, 0.32);
-    skyFill.position.set(26, 30, 22);
-    scene.add(skyFill);
+    // Dedicated Dome Skylight pouring diffuse zenith overcast daylight into central atrium
+    const domeSkylight = new THREE.DirectionalLight(0xf5f7fa, 0.75);
+    domeSkylight.position.set(0, 28, -12.6);
+    domeSkylight.target.position.set(0, 0, -12.6);
+    scene.add(domeSkylight.target);
+    scene.add(domeSkylight);
 
-    // Warm forecourt upward bounce softly illuminating soffits, overhangs and portico ceiling
-    const groundBounce = new THREE.DirectionalLight(0xe5dcce, 0.32);
-    groundBounce.position.set(0, -10, 16);
-    scene.add(groundBounce);
+    // Interior atrium diffuse ambient fill: clear neutral daylight illumination
+    const atriumAmbient = new THREE.HemisphereLight(0xf2f4f6, 0xa8a6a0, 0.48);
+    atriumAmbient.position.set(0, 12, -12.6);
+    scene.add(atriumAmbient);
 
-    // Bright Multi-Level Atrium Lights (Centered at Atrium Center Z = -12.6)
-    const atriumLight1 = new THREE.PointLight(0xfff8f0, 3.8, 45);
-    atriumLight1.position.set(0, 3.5, -12.6);
+    // Neutral multi-level atrium interior corridor & gallery illumination
+    const atriumLight1 = new THREE.PointLight(0xfbf7f0, 0.42, 28, 1.5);
+    atriumLight1.position.set(0, 4.0, -12.6);
     scene.add(atriumLight1);
 
-    const atriumLight2 = new THREE.PointLight(0xfff8f0, 3.2, 45);
-    atriumLight2.position.set(0, 11.0, -12.6);
+    const atriumLight2 = new THREE.PointLight(0xfbf7f0, 0.38, 28, 1.5);
+    atriumLight2.position.set(0, 11.5, -12.6);
     scene.add(atriumLight2);
 
-    const atriumLight3 = new THREE.PointLight(0xfff8f0, 3.2, 50);
-    atriumLight3.position.set(0, 18.0, -12.6);
+    const atriumLight3 = new THREE.PointLight(0xfbf7f0, 0.35, 32, 1.5);
+    atriumLight3.position.set(0, 18.5, -12.6);
     scene.add(atriumLight3);
 
-    // --- Forecourt Ground Paving matching front_reconstruction.png ---
-    const groundGeo = new THREE.PlaneGeometry(600, 600);
-    const groundMat = new THREE.MeshStandardMaterial({ 
-      color: 0xd8dde2, // Bright, clean daylight forecourt paving matching reference photo
-      roughness: 0.92, 
-      metalness: 0.02 
-    });
-    const groundMesh = new THREE.Mesh(groundGeo, groundMat);
-    groundMesh.rotation.x = -Math.PI / 2;
-    groundMesh.position.y = -0.90; // Placed at -0.90 matching Blender GROUND
-    groundMesh.receiveShadow = true;
-    groundMesh.visible = false; // Hidden until construction sequence reveals it
-    scene.add(groundMesh);
-    groundMeshRef.current = groundMesh;
+    // Soft neutral illumination under portico canopy into ground floor lobby
+    const porticoLobbyLight = new THREE.PointLight(0xf8f5ee, 0.50, 22, 1.5);
+    porticoLobbyLight.position.set(0, 3.5, 4.5);
+    scene.add(porticoLobbyLight);
+
+    // --- Realistic Survey Environment: Paved Forecourt, Road, Contact Shadows, 3D Trees, Boundary Wall ---
+    const campusEnv = createCampusEnvironment();
+    scene.add(campusEnv);
+    groundMeshRef.current = campusEnv.children[0] as THREE.Mesh;
 
     const frontPillars: THREE.Group[] = [];
     frontPillarsRef.current = frontPillars;
@@ -828,8 +1171,9 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     const scene = sceneRef.current;
 
     const loader = new GLTFLoader();
+    const modelUrl = `/h.glb?v=pccrc_${Date.now()}`;
     loader.load(
-      '/h.glb',
+      modelUrl,
       (gltf) => {
         const root = gltf.scene;
         modelGroupRef.current = root;
@@ -837,103 +1181,304 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
         root.position.set(0, 0, 0);
         const collected: any[] = [];
 
-        // Procedural Stucco Wall Texture (fine grain + subtle plaster color variation + rainwater runoff + hairline cracks)
-        const createWallStuccoTexture = (): THREE.CanvasTexture => {
+        // ---------------------------------------------------------------------------
+        // 1. Procedural Stucco Wall PBR Textures (Main Façade: faded warm cream / sandstone #EDE6DC)
+        // ---------------------------------------------------------------------------
+        const createWallStuccoPBRTextures = (): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } => {
           const sz = 1024;
           const cv = document.createElement('canvas');
           cv.width = sz;
           cv.height = sz;
           const ctx = cv.getContext('2d')!;
-          ctx.fillStyle = '#D8D0C2'; // Warm ivory / off-white base #D8D0C2
+
+          const bumpCv = document.createElement('canvas');
+          bumpCv.width = sz;
+          bumpCv.height = sz;
+          const bumpCtx = bumpCv.getContext('2d')!;
+
+          // Base: Faded warm cream / sandstone with subtle dusty peach undertone (#EDE6DC)
+          ctx.fillStyle = '#EDE6DC';
           ctx.fillRect(0, 0, sz, sz);
+          bumpCtx.fillStyle = '#808080';
+          bumpCtx.fillRect(0, 0, sz, sz);
+
+          // Organic paint weathering and uneven colour variation patches (sun-faded ivory & aged peach undertones)
+          const colorPatches = [
+            { x: sz * 0.25, y: sz * 0.30, r: sz * 0.35, color: 'rgba(244, 239, 230, 0.45)' }, // Lighter weathered ivory
+            { x: sz * 0.75, y: sz * 0.65, r: sz * 0.40, color: 'rgba(224, 210, 195, 0.35)' }, // Dusty peach undertone
+            { x: sz * 0.50, y: sz * 0.15, r: sz * 0.28, color: 'rgba(238, 232, 222, 0.50)' }, // Sun-bleached plaster
+            { x: sz * 0.20, y: sz * 0.85, r: sz * 0.32, color: 'rgba(215, 202, 188, 0.30)' }, // Shadowed lower tone
+            { x: sz * 0.80, y: sz * 0.20, r: sz * 0.25, color: 'rgba(246, 242, 234, 0.40)' }, // Ivory highlight
+          ];
+          for (const p of colorPatches) {
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+            g.addColorStop(0, p.color);
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, sz, sz);
+          }
 
           const img = ctx.getImageData(0, 0, sz, sz);
           const d = img.data;
+          const bImg = bumpCtx.getImageData(0, 0, sz, sz);
+          const bd = bImg.data;
+
           for (let y = 0; y < sz; y++) {
             for (let x = 0; x < sz; x++) {
               const idx = (y * sz + x) * 4;
-              // Multi-frequency noise for stucco granular tooth and subtle plaster undulation
+              // Multi-octave noise for plaster granular tooth and subtle plaster undulation
               const n1 = Math.sin(x * 0.05) * Math.cos(y * 0.05);
-              const n2 = Math.sin(x * 0.15 + y * 0.12);
-              const n3 = Math.sin(x * 0.40) * Math.sin(y * 0.40);
-              const grain = (Math.random() - 0.5) * 16 + (n1 * 5 + n2 * 4 + n3 * 3);
-              d[idx] = Math.min(255, Math.max(0, d[idx] + grain));
-              d[idx + 1] = Math.min(255, Math.max(0, d[idx + 1] + grain * 0.94));
-              d[idx + 2] = Math.min(255, Math.max(0, d[idx + 2] + grain * 0.85));
+              const n2 = Math.sin(x * 0.14 + y * 0.12);
+              const n3 = Math.sin(x * 0.38) * Math.sin(y * 0.38);
+              const grain = (Math.random() - 0.5) * 14 + (n1 * 5 + n2 * 3.5 + n3 * 2);
+
+              d[idx]     = Math.min(255, Math.max(0, d[idx]     + grain));
+              d[idx + 1] = Math.min(255, Math.max(0, d[idx + 1] + grain * 0.95));
+              d[idx + 2] = Math.min(255, Math.max(0, d[idx + 2] + grain * 0.88));
+
+              const bumpVal = Math.min(255, Math.max(0, 128 + grain * 2.2));
+              bd[idx]     = bumpVal;
+              bd[idx + 1] = bumpVal;
+              bd[idx + 2] = bumpVal;
             }
           }
           ctx.putImageData(img, 0, 0);
+          bumpCtx.putImageData(bImg, 0, 0);
 
-          // Vertical rainwater runoff streaks underneath horizontal projections & parapets
-          for (let i = 0; i < 44; i++) {
+          // Subtle organic rainwater runoff streaks underneath horizontal projections and sills
+          for (let i = 0; i < 40; i++) {
             const sx = Math.random() * sz;
             const sw = 2 + Math.random() * 4;
-            const len = sz * (0.20 + Math.random() * 0.55);
+            const len = sz * (0.18 + Math.random() * 0.55);
             const grad = ctx.createLinearGradient(sx, 0, sx, len);
-            grad.addColorStop(0, 'rgba(64, 56, 46, 0.15)');
-            grad.addColorStop(0.65, 'rgba(64, 56, 46, 0.05)');
-            grad.addColorStop(1, 'rgba(64, 56, 46, 0.0)');
+            grad.addColorStop(0.00, 'rgba(38, 34, 30, 0.28)');
+            grad.addColorStop(0.35, 'rgba(48, 44, 38, 0.14)');
+            grad.addColorStop(0.70, 'rgba(56, 52, 45, 0.05)');
+            grad.addColorStop(1.00, 'rgba(56, 52, 45, 0.00)');
             ctx.fillStyle = grad;
             ctx.fillRect(sx, 0, sw, len);
+
+            const bGrad = bumpCtx.createLinearGradient(sx, 0, sx, len);
+            bGrad.addColorStop(0.00, 'rgba(60, 60, 60, 0.35)');
+            bGrad.addColorStop(1.00, 'rgba(128, 128, 128, 0.0)');
+            bumpCtx.fillStyle = bGrad;
+            bumpCtx.fillRect(sx, 0, sw, len);
           }
 
-          // Localized hairline plaster cracks (branching clusters in stress zones)
-          ctx.strokeStyle = 'rgba(52, 45, 38, 0.28)';
+          // Delicate hairline plaster cracks & stress micro-fissures
+          ctx.strokeStyle = 'rgba(50, 46, 42, 0.28)';
           ctx.lineWidth = 1.0;
           for (let cluster = 0; cluster < 5; cluster++) {
-            let startX = (cluster * 200 + 70 + Math.random() * 60) % sz;
-            let startY = Math.random() * (sz * 0.7);
+            let startX = (cluster * 200 + 60 + Math.random() * 60) % sz;
+            let startY = Math.random() * (sz * 0.60);
             ctx.beginPath();
             ctx.moveTo(startX, startY);
             let curX = startX;
             let curY = startY;
             for (let seg = 0; seg < 6; seg++) {
-              curX += (Math.random() - 0.5) * 40;
-              curY += (Math.random() * 0.8 + 0.2) * 30;
+              curX += (Math.random() - 0.5) * 32;
+              curY += (Math.random() * 0.7 + 0.3) * 24;
               ctx.lineTo(curX, curY);
-              if (Math.random() > 0.5) {
+              if (Math.random() > 0.58) {
                 ctx.moveTo(curX, curY);
-                ctx.lineTo(curX + (Math.random() - 0.5) * 25, curY + Math.random() * 20);
+                ctx.lineTo(curX + (Math.random() - 0.5) * 18, curY + Math.random() * 16);
                 ctx.moveTo(curX, curY);
               }
             }
             ctx.stroke();
           }
 
-          const tex = new THREE.CanvasTexture(cv);
-          tex.wrapS = THREE.RepeatWrapping;
-          tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(4, 4);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          return tex;
+          const map = new THREE.CanvasTexture(cv);
+          map.wrapS = THREE.RepeatWrapping;
+          map.wrapT = THREE.RepeatWrapping;
+          map.repeat.set(2.5, 2.5);
+          map.colorSpace = THREE.SRGBColorSpace;
+
+          const bumpMap = new THREE.CanvasTexture(bumpCv);
+          bumpMap.wrapS = THREE.RepeatWrapping;
+          bumpMap.wrapT = THREE.RepeatWrapping;
+          bumpMap.repeat.set(2.5, 2.5);
+
+          return { map, bumpMap };
         };
 
-        // Procedural Granular Coating Texture for Round Columns
-        const createColumnGranularTexture = (): THREE.CanvasTexture => {
-          const sz = 256;
+        // ---------------------------------------------------------------------------
+        // 2. Procedural Projections PBR Textures (Pediments, Arches, Surrounds #CBB19F)
+        // ---------------------------------------------------------------------------
+        const createProjectionsPBRTextures = (): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } => {
+          const sz = 512;
           const cv = document.createElement('canvas');
           cv.width = sz;
           cv.height = sz;
           const ctx = cv.getContext('2d')!;
-          ctx.fillStyle = '#9A7358';
+
+          const bumpCv = document.createElement('canvas');
+          bumpCv.width = sz;
+          bumpCv.height = sz;
+          const bumpCtx = bumpCv.getContext('2d')!;
+
+          // Base: Slightly darker dusty peach / tan (#CBB19F)
+          ctx.fillStyle = '#CBB19F';
           ctx.fillRect(0, 0, sz, sz);
+          bumpCtx.fillStyle = '#808080';
+          bumpCtx.fillRect(0, 0, sz, sz);
 
           const img = ctx.getImageData(0, 0, sz, sz);
           const d = img.data;
+          const bImg = bumpCtx.getImageData(0, 0, sz, sz);
+          const bd = bImg.data;
+
           for (let i = 0; i < d.length; i += 4) {
-            const grain = (Math.random() - 0.5) * 32;
-            d[i] = Math.min(255, Math.max(0, d[i] + grain));
-            d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + grain * 0.86));
-            d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + grain * 0.76));
+            const grain = (Math.random() - 0.5) * 20;
+            d[i]     = Math.min(255, Math.max(0, d[i]     + grain));
+            d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + grain * 0.90));
+            d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + grain * 0.80));
+
+            const bVal = Math.min(255, Math.max(0, 128 + grain * 2.5));
+            bd[i]     = bVal;
+            bd[i + 1] = bVal;
+            bd[i + 2] = bVal;
           }
           ctx.putImageData(img, 0, 0);
+          bumpCtx.putImageData(bImg, 0, 0);
 
-          const tex = new THREE.CanvasTexture(cv);
-          tex.wrapS = THREE.RepeatWrapping;
-          tex.wrapT = THREE.RepeatWrapping;
-          tex.repeat.set(2, 6);
-          tex.colorSpace = THREE.SRGBColorSpace;
-          return tex;
+          const map = new THREE.CanvasTexture(cv);
+          map.wrapS = THREE.RepeatWrapping;
+          map.wrapT = THREE.RepeatWrapping;
+          map.repeat.set(2, 2);
+          map.colorSpace = THREE.SRGBColorSpace;
+
+          const bumpMap = new THREE.CanvasTexture(bumpCv);
+          bumpMap.wrapS = THREE.RepeatWrapping;
+          bumpMap.wrapT = THREE.RepeatWrapping;
+          bumpMap.repeat.set(2, 2);
+
+          return { map, bumpMap };
+        };
+
+        // ---------------------------------------------------------------------------
+        // 3. Procedural Columns Granular Stippling PBR Texture (#C7AB98)
+        // ---------------------------------------------------------------------------
+        const createColumnPBRTextures = (): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } => {
+          const sz = 512;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+
+          const bumpCv = document.createElement('canvas');
+          bumpCv.width = sz;
+          bumpCv.height = sz;
+          const bumpCtx = bumpCv.getContext('2d')!;
+
+          // Base: Dusty peach/tan columnar stucco (#C7AB98)
+          ctx.fillStyle = '#C7AB98';
+          ctx.fillRect(0, 0, sz, sz);
+          bumpCtx.fillStyle = '#808080';
+          bumpCtx.fillRect(0, 0, sz, sz);
+
+          const img = ctx.getImageData(0, 0, sz, sz);
+          const d = img.data;
+          const bImg = bumpCtx.getImageData(0, 0, sz, sz);
+          const bd = bImg.data;
+
+          for (let y = 0; y < sz; y++) {
+            for (let x = 0; x < sz; x++) {
+              const idx = (y * sz + x) * 4;
+              // Columnar vertical fluting & grain
+              const fluting = Math.sin(x * 0.18) * 6;
+              const stipple = (Math.random() - 0.5) * 24;
+              const total = fluting + stipple;
+
+              d[idx]     = Math.min(255, Math.max(0, d[idx]     + total));
+              d[idx + 1] = Math.min(255, Math.max(0, d[idx + 1] + total * 0.88));
+              d[idx + 2] = Math.min(255, Math.max(0, d[idx + 2] + total * 0.78));
+
+              const bVal = Math.min(255, Math.max(0, 128 + total * 2.8));
+              bd[idx]     = bVal;
+              bd[idx + 1] = bVal;
+              bd[idx + 2] = bVal;
+            }
+          }
+          ctx.putImageData(img, 0, 0);
+          bumpCtx.putImageData(bImg, 0, 0);
+
+          const map = new THREE.CanvasTexture(cv);
+          map.wrapS = THREE.RepeatWrapping;
+          map.wrapT = THREE.RepeatWrapping;
+          map.repeat.set(1, 4);
+          map.colorSpace = THREE.SRGBColorSpace;
+
+          const bumpMap = new THREE.CanvasTexture(bumpCv);
+          bumpMap.wrapS = THREE.RepeatWrapping;
+          bumpMap.wrapT = THREE.RepeatWrapping;
+          bumpMap.repeat.set(1, 4);
+
+          return { map, bumpMap };
+        };
+
+        // ---------------------------------------------------------------------------
+        // 4. Procedural Decorative Bands & Coping PBR Texture (#825441)
+        // ---------------------------------------------------------------------------
+        const createDecorativeBandPBRTextures = (): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } => {
+          const sz = 512;
+          const cv = document.createElement('canvas');
+          cv.width = sz;
+          cv.height = sz;
+          const ctx = cv.getContext('2d')!;
+
+          const bumpCv = document.createElement('canvas');
+          bumpCv.width = sz;
+          bumpCv.height = sz;
+          const bumpCtx = bumpCv.getContext('2d')!;
+
+          // Base: Muted terracotta-brown stone band (#825441)
+          ctx.fillStyle = '#825441';
+          ctx.fillRect(0, 0, sz, sz);
+          bumpCtx.fillStyle = '#808080';
+          bumpCtx.fillRect(0, 0, sz, sz);
+
+          // Rhythmic relief dentil / panel block joints
+          ctx.strokeStyle = '#5c3627';
+          ctx.lineWidth = 4;
+          bumpCtx.strokeStyle = '#303030';
+          bumpCtx.lineWidth = 4;
+          for (let x = 32; x < sz; x += 64) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, sz); ctx.stroke();
+            bumpCtx.beginPath(); bumpCtx.moveTo(x, 0); bumpCtx.lineTo(x, sz); bumpCtx.stroke();
+          }
+
+          const img = ctx.getImageData(0, 0, sz, sz);
+          const d = img.data;
+          const bImg = bumpCtx.getImageData(0, 0, sz, sz);
+          const bd = bImg.data;
+
+          for (let i = 0; i < d.length; i += 4) {
+            const grain = (Math.random() - 0.5) * 22;
+            d[i]     = Math.min(255, Math.max(0, d[i]     + grain));
+            d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + grain * 0.85));
+            d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + grain * 0.72));
+
+            const bVal = Math.min(255, Math.max(0, bd[i] + grain * 2.0));
+            bd[i]     = bVal;
+            bd[i + 1] = bVal;
+            bd[i + 2] = bVal;
+          }
+          ctx.putImageData(img, 0, 0);
+          bumpCtx.putImageData(bImg, 0, 0);
+
+          const map = new THREE.CanvasTexture(cv);
+          map.wrapS = THREE.RepeatWrapping;
+          map.wrapT = THREE.RepeatWrapping;
+          map.repeat.set(4, 2);
+          map.colorSpace = THREE.SRGBColorSpace;
+
+          const bumpMap = new THREE.CanvasTexture(bumpCv);
+          bumpMap.wrapS = THREE.RepeatWrapping;
+          bumpMap.wrapT = THREE.RepeatWrapping;
+          bumpMap.repeat.set(4, 2);
+
+          return { map, bumpMap };
         };
 
         // Procedural Stone-Clad Ramp Texture (irregular grey-blue natural stone pieces + dark grey grout)
@@ -983,12 +1528,7 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           return tex;
         };
 
-        // ------------------------------------------------------------------
-        // Procedural Photorealistic Institutional Door Texture
-        // Painted composite/metal institutional door: warm dusty peach
-        // Base colour approx #B98F7D – #C49A87, matte, slightly rough,
-        // with surface grain, edge scuffs, wear marks, and subtle paint variation.
-        // ------------------------------------------------------------------
+        // Procedural Photorealistic Institutional Door Texture (peach-beige leaf)
         const createDoorPeachTexture = (): THREE.CanvasTexture => {
           const sz = 512;
           const cv = document.createElement('canvas');
@@ -996,11 +1536,9 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           cv.height = sz;
           const ctx = cv.getContext('2d')!;
 
-          // Base warm dusty peach
-          ctx.fillStyle = '#C49A87';
+          ctx.fillStyle = '#C29F8E';
           ctx.fillRect(0, 0, sz, sz);
 
-          // Subtle paint colour variation – patches of lighter ivory and deeper salmon
           const patches = [
             { x: 80, y: 100, r: 140, color: 'rgba(185,143,125,0.18)' },
             { x: 380, y: 80, r: 110, color: 'rgba(155,110,90,0.12)' },
@@ -1016,13 +1554,12 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             ctx.fillRect(0, 0, sz, sz);
           }
 
-          // Fine surface grain (matte painted metal/composite)
           const img = ctx.getImageData(0, 0, sz, sz);
           const d = img.data;
           for (let y = 0; y < sz; y++) {
             for (let x = 0; x < sz; x++) {
               const idx = (y * sz + x) * 4;
-              const grain = (Math.random() - 0.5) * 18;
+              const grain = (Math.random() - 0.5) * 16;
               d[idx]     = Math.min(255, Math.max(0, d[idx]     + grain));
               d[idx + 1] = Math.min(255, Math.max(0, d[idx + 1] + grain * 0.88));
               d[idx + 2] = Math.min(255, Math.max(0, d[idx + 2] + grain * 0.80));
@@ -1030,31 +1567,17 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           }
           ctx.putImageData(img, 0, 0);
 
-          // Horizontal low-contrast panel lines (institutional door panels)
           ctx.strokeStyle = 'rgba(80, 54, 40, 0.12)';
           ctx.lineWidth = 1.5;
           for (const fy of [sz * 0.22, sz * 0.48, sz * 0.74]) {
             ctx.beginPath(); ctx.moveTo(10, fy); ctx.lineTo(sz - 10, fy); ctx.stroke();
           }
 
-          // Edge scuff / wear marks along perimeter
           ctx.strokeStyle = 'rgba(60, 38, 28, 0.18)';
           ctx.lineWidth = 6;
-          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, sz); ctx.stroke(); // left
-          ctx.beginPath(); ctx.moveTo(sz, 0); ctx.lineTo(sz, sz); ctx.stroke(); // right
-          ctx.beginPath(); ctx.moveTo(0, sz); ctx.lineTo(sz, sz); ctx.stroke(); // bottom kick
-
-          // Subtle vertical dust streaks
-          for (let i = 0; i < 8; i++) {
-            const sx = 20 + Math.random() * (sz - 40);
-            const sw = 1 + Math.random() * 2;
-            const sl = sz * (0.3 + Math.random() * 0.5);
-            const sg = ctx.createLinearGradient(sx, 0, sx, sl);
-            sg.addColorStop(0, 'rgba(90,64,48,0.06)');
-            sg.addColorStop(1, 'rgba(90,64,48,0.0)');
-            ctx.fillStyle = sg;
-            ctx.fillRect(sx, 0, sw, sl);
-          }
+          ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, sz); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(sz, 0); ctx.lineTo(sz, sz); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, sz); ctx.lineTo(sz, sz); ctx.stroke();
 
           const tex = new THREE.CanvasTexture(cv);
           tex.wrapS = THREE.RepeatWrapping;
@@ -1064,19 +1587,19 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           return tex;
         };
 
-        // Procedural Door Frame Peach Texture (slightly darker/richer than leaf)
+        // Procedural Door Frame Peach Texture (slightly deeper than leaf)
         const createDoorFrameTexture = (): THREE.CanvasTexture => {
           const sz = 256;
           const cv = document.createElement('canvas');
           cv.width = sz;
           cv.height = sz;
           const ctx = cv.getContext('2d')!;
-          ctx.fillStyle = '#A97A68'; // Slightly deeper dusty peach for frame
+          ctx.fillStyle = '#A47E6F';
           ctx.fillRect(0, 0, sz, sz);
           const img = ctx.getImageData(0, 0, sz, sz);
           const d = img.data;
           for (let i = 0; i < d.length; i += 4) {
-            const g = (Math.random() - 0.5) * 20;
+            const g = (Math.random() - 0.5) * 18;
             d[i]     = Math.min(255, Math.max(0, d[i]     + g));
             d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + g * 0.85));
             d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + g * 0.76));
@@ -1090,153 +1613,267 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           return tex;
         };
 
-        const wallTexture      = createWallStuccoTexture();
-        const columnTexture    = createColumnGranularTexture();
-        const stoneRampTexture = createStoneRampTexture();
-        const doorPeachTexture = createDoorPeachTexture();
-        const doorFrameTexture = createDoorFrameTexture();
+        const wallPBR           = createWallStuccoPBRTextures();
+        const projectionsPBR    = createProjectionsPBRTextures();
+        const columnPBR         = createColumnPBRTextures();
+        const decorativeBandPBR = createDecorativeBandPBRTextures();
+        const stoneRampTexture  = createStoneRampTexture();
+        const doorPeachTexture  = createDoorPeachTexture();
+        const doorFrameTexture  = createDoorFrameTexture();
 
-        // Calibrated Reference Materials matching updated PCCRC Building specification
-        const matCream = new THREE.MeshStandardMaterial({
-          color: 0xffffff, // White multiplier so canvas texture #D8D0C2 base is accurately retained
-          roughness: 0.94,
+        // ---------------------------------------------------------------------------
+        // Physically Distinct PBR Materials Calibrated to Real Building Photograph
+        // ---------------------------------------------------------------------------
+
+        // 1. Main Façade = Faded warm cream / sandstone with subtle dusty peach undertone
+        const matMainFacade = new THREE.MeshStandardMaterial({
+          color: 0xEDE6DC, // Warm cream sandstone plaster (NOT monochrome brown!)
+          roughness: 0.86,
           metalness: 0.0,
-          map: wallTexture,
-          bumpMap: wallTexture,
+          map: wallPBR.map,
+          bumpMap: wallPBR.bumpMap,
           bumpScale: 0.022
         });
-        const matRecessedPeach = new THREE.MeshStandardMaterial({
-          color: 0xA98A72,
-          roughness: 0.88,
-          metalness: 0.02
-        });
-        const matColumn = new THREE.MeshStandardMaterial({
-          color: 0xffffff, // White multiplier so column canvas texture #9A7358 is accurately retained
-          roughness: 0.92,
-          metalness: 0.0,
-          map: columnTexture,
-          bumpMap: columnTexture,
-          bumpScale: 0.038
-        });
-        const matParapetBand = new THREE.MeshStandardMaterial({
-          color: 0x8C7F70,
-          roughness: 0.88,
-          metalness: 0.02
-        });
-        const matStoneTread = new THREE.MeshStandardMaterial({
-          color: 0xb5aca0, // Weathered cream stair stone
+
+        // 2. Projections & Pediments = Slightly darker dusty peach / tan
+        const matProjections = new THREE.MeshStandardMaterial({
+          color: 0xCBB19F, // Distinct dusty peach/tan tone for pediments, reveals & spandrels
           roughness: 0.84,
-          metalness: 0.02
+          metalness: 0.01,
+          map: projectionsPBR.map,
+          bumpMap: projectionsPBR.bumpMap,
+          bumpScale: 0.025
         });
-        const matTerracotta = new THREE.MeshStandardMaterial({
-          color: 0x783c30, // Aged terracotta red stair stone
+
+        // 3. Round & Paired Columns = Dusty peach / tan granular columnar stippling
+        const matColumn = new THREE.MeshStandardMaterial({
+          color: 0xC7AB98, // Distinct column material with columnar grain
+          roughness: 0.85,
+          metalness: 0.01,
+          map: columnPBR.map,
+          bumpMap: columnPBR.bumpMap,
+          bumpScale: 0.032
+        });
+
+        // 4. Decorative Bands, Dentils & Insets = Muted terracotta-brown
+        const matDecorativeBands = new THREE.MeshStandardMaterial({
+          color: 0x825441, // Muted terracotta-brown for relief squares, dentils, coping & horizontal bands
+          roughness: 0.89,
+          metalness: 0.02,
+          map: decorativeBandPBR.map,
+          bumpMap: decorativeBandPBR.bumpMap,
+          bumpScale: 0.028
+        });
+
+        // 5. Window Frames = Dark charcoal aluminium
+        const matWindowFrame = new THREE.MeshStandardMaterial({
+          color: 0x242629, // Dark charcoal aluminium extruded frames, mullions & transoms
+          roughness: 0.48,
+          metalness: 0.76
+        });
+
+        // 6. Window Glass = Realistic slightly blue-grey reflective glass with interior darkness depth
+        const matWindowGlass = new THREE.MeshStandardMaterial({
+          color: 0x2E3D48, // Realistic slightly blue-grey reflective glazing reflecting overcast sky
+          roughness: 0.08,
+          metalness: 0.18,
+          transparent: true,
+          opacity: 0.88,
+          envMapIntensity: 1.6
+        });
+
+        // 7. Security Grilles & Grille Bars = Dark bronze/charcoal metal
+        const matWindowGrill = new THREE.MeshStandardMaterial({
+          color: 0x2A2724, // Dark bronze/charcoal security grilles
+          roughness: 0.58,
+          metalness: 0.65
+        });
+
+        // 8. Railings & Balustrades = Dark bronze/charcoal
+        const matRailing = new THREE.MeshStandardMaterial({
+          color: 0x282623, // Dark bronze/charcoal balcony railings & handrails
+          roughness: 0.52,
+          metalness: 0.72
+        });
+
+        // 9. Entrance Steps - Risers = Muted reddish terracotta
+        const matStepRiser = new THREE.MeshStandardMaterial({
+          color: 0x824235, // Muted reddish terracotta stair risers matching photograph
           roughness: 0.88,
           metalness: 0.02
         });
-        // ── Photorealistic Peach Institutional Door Leaf ─────────────────────
-        // Warm dusty peach painted composite door panel. Matte, slightly rough
-        // surface with paint ageing, grain, edge scuffs and subtle colour variation.
+
+        // 10. Entrance Steps - Treads & Nosings = Cream weathered sandstone edges
+        const matStepTread = new THREE.MeshStandardMaterial({
+          color: 0xDDD6CA, // Cream worn stair nosings & tread edges
+          roughness: 0.82,
+          metalness: 0.02
+        });
+
+        // 11. AC Outdoor Units - Weathered Sheet Metal Casing
+        const matACCasing = new THREE.MeshStandardMaterial({
+          color: 0xD0D4D8, // Weathered off-white galvanized sheet metal
+          roughness: 0.52,
+          metalness: 0.45
+        });
+
+        // 12. AC Outdoor Units - Shadow Cavity, Horizontal Slats & Fan
+        const matACGrille = new THREE.MeshStandardMaterial({
+          color: 0x1C1E20, // Dark interior shadow cavity and fan blades
+          roughness: 0.80,
+          metalness: 0.20
+        });
+
+        // 13. AC Outdoor Units - Rusted Oxidized Support Brackets
+        const matACBracket = new THREE.MeshStandardMaterial({
+          color: 0x5A4032, // Oxidized rusted iron support brackets
+          roughness: 0.86,
+          metalness: 0.42
+        });
+
+        // 14. Drainage Downpipes & Wall Brackets = Weathered PVC / zinc
+        const matDrainagePipe = new THREE.MeshStandardMaterial({
+          color: 0xB2B6BA, // Weathered rainwater downpipes
+          roughness: 0.64,
+          metalness: 0.22
+        });
+
+        // 15. Electrical Conduits & Cables = Industrial dark charcoal PVC
+        const matConduit = new THREE.MeshStandardMaterial({
+          color: 0x252628, // Dark industrial electrical conduit pipes & surface cables
+          roughness: 0.75,
+          metalness: 0.06
+        });
+
+        // 16. Dedicated Organic Weathering Overlays (rain & algae deposits)
+        const matWeatheringStreak = new THREE.MeshStandardMaterial({
+          color: 0x1A1E18, // Dark organic moss/algae deposit and rainwater residue
+          roughness: 0.96,
+          metalness: 0.0,
+          transparent: true,
+          opacity: 0.75,
+          depthWrite: false
+        });
+
+        // 17. Structural Fissures & Hairline Cracks
+        const matFissure = new THREE.MeshStandardMaterial({
+          color: 0x14120E, // Dark fracture line
+          roughness: 1.0,
+          metalness: 0.0
+        });
+
+        // 18. Foundation Plinth & Slabs Edge = Dark weathered concrete
+        const matPlinth = new THREE.MeshStandardMaterial({
+          color: 0x48433E, // Lower foundation concrete and dark weathered base plinth
+          roughness: 0.94,
+          metalness: 0.02
+        });
+
+        // 19. Ramp Masonry
+        const matStoneRamp = new THREE.MeshStandardMaterial({
+          color: 0x58626E,
+          map: stoneRampTexture,
+          bumpMap: stoneRampTexture,
+          bumpScale: 0.035,
+          roughness: 0.82,
+          metalness: 0.02
+        });
+
+        // 20. Doors & Hardware
         const matDoorLeaf = new THREE.MeshStandardMaterial({
-          color: 0xffffff,          // white multiplier — true colour lives in texture
-          roughness: 0.86,          // matte institutional painted door
-          metalness: 0.04,          // minimal metal hint (composite/painted steel)
+          color: 0xC29F8E,
+          roughness: 0.82,
+          metalness: 0.03,
           map: doorPeachTexture,
           bumpMap: doorPeachTexture,
           bumpScale: 0.015
         });
 
-        // ── Door Frame / Architrave / Reveal ─────────────────────────────────
-        // Thick peach-toned door frame, same family as leaf but richer and rougher
         const matDoorFrame = new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          roughness: 0.90,
+          color: 0xA47E6F,
+          roughness: 0.86,
           metalness: 0.02,
           map: doorFrameTexture,
           bumpMap: doorFrameTexture,
-          bumpScale: 0.022
+          bumpScale: 0.020
         });
 
-        // ── Door Vision Glass ─────────────────────────────────────────────────
-        // Small inset vision windows in the door — dark semi-transparent with slight tint
-        const matDoorGlass = new THREE.MeshStandardMaterial({
-          color: 0x162028,
-          roughness: 0.08,
-          metalness: 0.70,
-          transparent: true,
-          opacity: 0.82,
-          envMapIntensity: 1.8
-        });
-
-        // ── Door Hardware (handles, hydraulic closers, push plate, latch) ─────
-        // Brushed stainless handles and closer arms — aged/matte brushed metal
         const matDoorHardware = new THREE.MeshStandardMaterial({
-          color: 0x7a7f82,
-          roughness: 0.38,
-          metalness: 0.78
+          color: 0x8E949A, // Satin stainless steel door handles & hydraulic closers
+          roughness: 0.34,
+          metalness: 0.86
         });
 
-        // ── Room Number Placard (white sign plate on door face) ───────────────
-        // Bright off-white plate — high contrast so text is readable
         const matPushPlate = new THREE.MeshStandardMaterial({
-          color: 0xf5f0e8,   // Bright off-white / very light ivory
-          roughness: 0.60,
+          color: 0xF5F2EC,
+          roughness: 0.58,
           metalness: 0.04
         });
 
-        // ── Room Number Text Block (dark embossed text on placard) ────────────
-        // Near-black so room numbers contrast sharply against the white plate
         const matPlacardText = new THREE.MeshStandardMaterial({
-          color: 0x0a0a0a,   // Near-black text
+          color: 0x111111,
           roughness: 0.70,
           metalness: 0.02
         });
 
-        // Legacy alias (kept so any unreachable branch still compiles)
-        const matWoodBeech = matDoorLeaf;
-        const matStainless = new THREE.MeshStandardMaterial({
-          color: 0x606468, // Aged silver/grey railing
-          roughness: 0.52,
-          metalness: 0.68
+        const matDoorGlass = new THREE.MeshStandardMaterial({
+          color: 0x18222A,
+          roughness: 0.08,
+          metalness: 0.70,
+          transparent: true,
+          opacity: 0.85,
+          envMapIntensity: 1.8
         });
-        const matGlass = new THREE.MeshStandardMaterial({
-          color: 0x08101a, // Dark blue-charcoal glass reflecting bright sky
-          roughness: 0.03, // Ultra-slick polished glass
-          metalness: 0.85, // High specular mirror reflectance of sky
-          envMapIntensity: 2.4
+
+        const matCeilingSoffit = new THREE.MeshStandardMaterial({
+          color: 0xE4E0D6, // Neutral cream ceiling plaster in soft ambient light
+          roughness: 0.90,
+          metalness: 0.0
         });
-        const matWindowGrill = new THREE.MeshStandardMaterial({
-          color: 0x585c60,
+
+        const matFloorWalkway = new THREE.MeshStandardMaterial({
+          color: 0xA49F96, // Neutral architectural stone / terrazzo gallery floor
           roughness: 0.54,
-          metalness: 0.75
+          metalness: 0.04
         });
-        const matStoneRamp = new THREE.MeshStandardMaterial({
-          color: 0xffffff,
-          map: stoneRampTexture,
-          bumpMap: stoneRampTexture,
-          bumpScale: 0.04,
-          roughness: 0.84,
-          metalness: 0.02
+
+        const matSkylightGlass = new THREE.MeshStandardMaterial({
+          color: 0x9CB4C2, // Frosted/clouded zenith skylight glass panels
+          roughness: 0.18,
+          metalness: 0.12,
+          transparent: true,
+          opacity: 0.75
         });
+
         const matFireRed = new THREE.MeshStandardMaterial({
-          color: 0xdc2626,
-          roughness: 0.3,
-          metalness: 0.1
+          color: 0xDC2626,
+          roughness: 0.32,
+          metalness: 0.10
         });
-        const matGranite = new THREE.MeshStandardMaterial({
-          color: 0x27272a,
-          roughness: 0.4,
-          metalness: 0.1
-        });
-        const matWindowFrame = new THREE.MeshStandardMaterial({
-          color: 0x222528, // Aged dark bronze/charcoal aluminum frame
-          roughness: 0.62,
-          metalness: 0.72
-        });
-        const matPlinth = new THREE.MeshStandardMaterial({
-          color: 0x544f48, // Dark moisture-stained, chipped concrete
-          roughness: 0.96,
+
+        // Interior Room & Corridor Boundary Materials (Matching institutional_reconstruction.blend)
+        const matInteriorWall = new THREE.MeshStandardMaterial({
+          color: 0xEDEFE8, // Authentic warm off-white interior room & corridor wall plaster
+          roughness: 0.88,
           metalness: 0.02
         });
+
+        const matRoomFloor = new THREE.MeshStandardMaterial({
+          color: 0x98938A, // Neutral room concrete/terrazzo floor slab
+          roughness: 0.82,
+          metalness: 0.04
+        });
+
+        // Aliases for compatibility
+        const matCream = matMainFacade;
+        const matRecessedPeach = matProjections;
+        const matParapetBand = matDecorativeBands;
+        const matStoneTread = matStepTread;
+        const matTerracotta = matStepRiser;
+        const matWoodBeech = matDoorLeaf;
+        const matStainless = matRailing;
+        const matGlass = matWindowGlass;
+        const matGranite = matPlinth;
 
         const toRemove: THREE.Object3D[] = [];
 
@@ -1245,25 +1882,17 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           const parentName = child.parent ? child.parent.name || '' : '';
           const ln = (name + ' ' + parentName).toLowerCase();
 
-          // Completely detach legacy procedural paving, platform, and planter meshes from scene graph
+          // Only detach legacy procedural ground/planters specifically by mesh name, NEVER whole architectural collections!
           const isLegacyGroundOrPlanter = 
-            ln.includes('glossy tile') ||
-            ln.includes('stone paving') ||
-            ln.includes('planter') ||
-            ln.includes('plant leaf') ||
-            ln.includes('plant stem') ||
-            ln.includes('concrete platform') ||
-            ln.includes('circular platform') ||
-            ln.includes('stone inlay') ||
-            ln.includes('polished stone ground') ||
-            ln.includes('atrium polished') ||
-            ln.includes('burgundy planter') ||
-            ln.includes('sparse low planting') ||
-            ln.includes('planting') ||
-            ln.includes('circular raised stone') ||
-            ln.includes('central circular concrete platform') ||
-            ln.includes('circular edging mortar seam') ||
-            ln.includes('circular bed soil');
+            name.includes('glossy tile') ||
+            name.includes('stone paving') ||
+            name.includes('Burgundy planter') ||
+            name.includes('sparse low planting') ||
+            name.includes('circular raised stone') ||
+            name.includes('central circular concrete platform') ||
+            name.includes('circular edging mortar seam') ||
+            name.includes('circular bed soil') ||
+            name.includes('Atrium polished stone ground');
 
           if (isLegacyGroundOrPlanter) {
             child.visible = false;
@@ -1279,95 +1908,219 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
             m.receiveShadow = true;
             const yPos = m.position.y;
 
-            // Accurate Color & Material Assignment matching front_reconstruction.png
-            if (ln.includes('glass')) {
-              m.material = matGlass;
-            } else if (
-              ln.includes('security grille') || 
-              ln.includes('grille crossbar') ||
-              ln.includes('rectangular grille')
+            // Generate normal-aware triplanar UV coordinates for any mesh lacking UVs
+            // Eliminates diagonal stretching and horizontal smearing on roofs and sills!
+            if (!m.geometry.attributes.uv && m.geometry.attributes.position) {
+              if (!m.geometry.attributes.normal) {
+                m.geometry.computeVertexNormals();
+              }
+              const pos = m.geometry.attributes.position;
+              const normals = m.geometry.attributes.normal;
+              const count = pos.count;
+              const uvs = new Float32Array(count * 2);
+              const scale = 0.25; // 4m repeat scale
+
+              for (let i = 0; i < count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                const z = pos.getZ(i);
+                const nx = normals ? normals.getX(i) : 0;
+                const ny = normals ? normals.getY(i) : 0;
+                const nz = normals ? normals.getZ(i) : 0;
+
+                let u = 0;
+                let v = 0;
+                if (Math.abs(ny) > 0.65) {
+                  // Horizontal surface (roofs, slab tops, sills, treads, coping tops)
+                  u = x * scale;
+                  v = z * scale;
+                } else if (Math.abs(nz) >= Math.abs(nx)) {
+                  // Front or rear vertical elevation (rain streaks naturally flow in -Y)
+                  u = x * scale;
+                  v = y * scale;
+                } else {
+                  // Left or right side elevation (rain streaks naturally flow in -Y)
+                  u = z * scale;
+                  v = y * scale;
+                }
+                uvs[i * 2] = u;
+                uvs[i * 2 + 1] = v;
+              }
+              m.geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+            }
+
+            // ---------------------------------------------------------------
+            // Physically Accurate Material Assignment Hierarchy
+            // ---------------------------------------------------------------
+
+            // A. Rain streaks, black mildew & algae deposits
+            if (
+              ln.includes('rain or algae streak') || 
+              ln.includes('deposit overlay') || 
+              ln.includes('weathering') ||
+              name.includes('streak')
             ) {
-              m.material = matWindowGrill;
-            } else if (
-              ln.includes('mullion') || 
-              ln.includes('transom') || 
-              ln.includes('window frame') || 
-              ln.includes('perimeter seal') ||
-              ln.includes('window latch') ||
-              ln.includes('bay latch') ||
-              ln.includes('bay horizontal transom') ||
-              ln.includes('bay vertical mullion')
+              m.material = matWeatheringStreak;
+            }
+            // B. Structural fissures & hairline plaster cracks
+            else if (
+              ln.includes('fissure') || 
+              ln.includes('crack')
             ) {
-              m.material = matWindowFrame;
-            } else if (
-              ln.includes('cylindrical column') ||
-              ln.includes('paired small columns') ||
-              ln.includes('tall bay column') ||
-              ln.includes('monumental central column') ||
-              (name.includes('column') && !name.includes('square') && !name.includes('pier') && !name.includes('rectangular'))
-            ) {
-              m.material = matColumn;
-            } else if (
-              name.includes('Peach') || 
-              name.includes('pediment') || 
-              name.includes('arch reveal') || 
-              name.includes('reveal rim') ||
-              name.includes('arched opening spandrel') ||
-              name.includes('lower façade')
-            ) {
-              m.material = matRecessedPeach;
-            } else if (
-              name.includes('coping') ||
-              name.includes('moulded cornice') ||
-              ln.includes('parapet coping')
-            ) {
-              m.material = matParapetBand;
-            } else if (
-              name.includes('ramp') ||
-              name.includes('access ramp') ||
-              ln.includes('access ramp')
-            ) {
-              m.material = matStoneRamp;
-            } else if (name.includes('riser') || name.includes('Wide entrance stair riser')) {
-              m.material = matTerracotta;
-            } else if (name.includes('tread') || name.includes('stair tread') || name.includes('nosing') || name.includes('Cream worn stair nosing')) {
-              m.material = matStoneTread;
-            } else if (name.includes('pier plinth') || name.includes('foundation') || name.includes('ground structural slab')) {
-              m.material = matPlinth;
-            } else if (
-              // Vision / sidelite glass inserts in the door leaf
+              m.material = matFissure;
+            }
+            // C. Vision glass, skylight panels & window glass
+            else if (
               name.includes('Vision_Glass') ||
               name.includes('Sidelite_Glass') ||
               name.includes('Door_Glass')
             ) {
               m.material = matDoorGlass;
-            } else if (
-              // Door leaves (main panel)
-              name.includes('Door_Left') ||
-              name.includes('Door_Right') ||
-              name.includes('Door_Leaf') ||
-              name.includes('Portal_') ||
-              (name.includes('Door_') && !name.includes('Frame') && !name.includes('Jamb') && !name.includes('Head') && !name.includes('Sill'))
+            }
+            else if (name.includes('skylight')) {
+              m.material = matSkylightGlass;
+            }
+            else if (ln.includes('glass') || ln.includes('glazing')) {
+              m.material = matWindowGlass;
+            }
+            // D. AC outdoor units (casings, fan blades, grilles, rusted brackets, drain/refrigerant lines)
+            else if (name.includes('Rusted AC support bracket') || (name.includes('bracket') && name.includes('AC'))) {
+              m.material = matACBracket;
+            }
+            else if (name.includes('AC horizontal grille') || name.includes('AC front grille shadow') || name.includes('AC fan')) {
+              m.material = matACGrille;
+            }
+            else if (name.includes('AC outdoor casing') || name.includes('AC assembly')) {
+              m.material = matACCasing;
+            }
+            else if (name.includes('AC refrigerant') || name.includes('AC condensate')) {
+              m.material = matDrainagePipe;
+            }
+            // E. Security grilles
+            else if (
+              ln.includes('security grille') || 
+              ln.includes('grille crossbar') ||
+              ln.includes('rectangular grille') ||
+              ln.includes('grille') ||
+              ln.includes('grill')
             ) {
-              m.material = matDoorLeaf;
-            } else if (
-              // Door frame, jamb, head, threshold, architrave, reveal
-              name.includes('Door_Frame') ||
-              name.includes('Door_Jamb') ||
-              name.includes('Door_Head') ||
-              name.includes('Door_Sill') ||
-              name.includes('Door_Thresh') ||
-              name.includes('Architrave') ||
-              name.includes('Door_Reveal')
+              m.material = matWindowGrill;
+            }
+            // F. Drainage downpipes, trench drains & pipe brackets
+            else if (
+              name.includes('downpipe') || 
+              name.includes('drainage') || 
+              name.includes('pipe') || 
+              name.includes('trench drain')
             ) {
-              m.material = matDoorFrame;
-            } else if (
-              // Room number text on placard — MUST be assigned before generic Placard match
-              name.includes('Placard_Text')
+              m.material = matDrainagePipe;
+            }
+            // G. Electrical conduits, surface cables & distribution boxes
+            else if (
+              name.includes('conduit') || 
+              name.includes('cable') || 
+              name.includes('distribution box') ||
+              name.includes('Cable_')
             ) {
+              m.material = matConduit;
+            }
+            // H. Window frames, transoms, mullions, perimeter seals, latches & sills
+            else if (
+              ln.includes('mullion') || 
+              ln.includes('transom') || 
+              ln.includes('window frame') || 
+              ln.includes('perimeter seal') || 
+              ln.includes('window latch') || 
+              ln.includes('bay latch') ||
+              ln.includes('bay horizontal transom') ||
+              ln.includes('bay vertical mullion') ||
+              name.includes('Vision_Frame') ||
+              ln.includes('sill') ||
+              name.includes('bracket') ||
+              name.includes('vent')
+            ) {
+              m.material = matWindowFrame;
+            }
+            // I. Balcony railings, balustrades & handrails
+            else if (
+              ln.includes('railing') || 
+              ln.includes('balustrade') || 
+              (ln.includes('balcony') && (ln.includes('upright') || ln.includes('horizontal') || ln.includes('rail')))
+            ) {
+              m.material = matRailing;
+            }
+            // J. Entrance steps: Terracotta risers vs Cream worn nosings/treads
+            else if (name.includes('riser') || name.includes('Wide entrance stair riser')) {
+              m.material = matStepRiser;
+            }
+            else if (name.includes('tread') || name.includes('nosing') || name.includes('Cream worn stair nosing')) {
+              m.material = matStepTread;
+            }
+            // K. Round & cylindrical columns
+            else if (
+              ln.includes('cylindrical column') ||
+              ln.includes('paired small columns') ||
+              ln.includes('tall bay column') ||
+              ln.includes('monumental central column') ||
+              (name.includes('column') && !name.includes('square') && !name.includes('pier plinth') && !name.includes('rectangular'))
+            ) {
+              m.material = matColumn;
+            }
+            // L. Decorative bands, dentil insets, textured parapet panels & horizontal accents
+            else if (
+              name.includes('Square textured decorative inset') ||
+              name.includes('Side textured parapet inset') ||
+              name.includes('Side square inset border') ||
+              name.includes('Raised border around aggregate inset') ||
+              name.includes('horizontal band') ||
+              name.includes('coping') ||
+              name.includes('cornice') ||
+              name.includes('fascia') ||
+              name.includes('dentil') ||
+              name.includes('moulded cornice') ||
+              ln.includes('parapet coping')
+            ) {
+              m.material = matDecorativeBands;
+            }
+            // M. Projections, pediments, arched bay reveals & spandrels
+            else if (
+              name.includes('Peach') || 
+              name.includes('pediment') || 
+              name.includes('arch reveal') || 
+              name.includes('reveal rim') ||
+              name.includes('arched opening spandrel') ||
+              name.includes('Arch spandrel') ||
+              name.includes('lower façade') ||
+              name.includes('recessed upper') ||
+              name.includes('pink lower') ||
+              name.includes('aggregate') ||
+              name.includes('ochre')
+            ) {
+              m.material = matProjections;
+            }
+            // N. Stone access ramp
+            else if (
+              name.includes('ramp') ||
+              name.includes('access ramp') ||
+              ln.includes('access ramp')
+            ) {
+              m.material = matStoneRamp;
+            }
+            // O. Lower plinth, foundation concrete & skirting
+            else if (
+              name.includes('pier plinth') || 
+              name.includes('foundation') || 
+              name.includes('ground structural slab') || 
+              name.includes('plinth') ||
+              name.includes('Skirting')
+            ) {
+              m.material = matPlinth;
+            }
+            // P. Door placards & signage
+            else if (name.includes('Placard_Text')) {
               m.material = matPlacardText;
-            } else if (
-              // PUSH/PULL sign plate, door placard plate
+            }
+            else if (
               name.includes('Push_Plate') ||
               name.includes('Pull_Plate') ||
               name.includes('Placard_Plate') ||
@@ -1375,31 +2128,92 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
               name.includes('Door_Sign')
             ) {
               m.material = matPushPlate;
-            } else if (
-              // Hydraulic closers, handles, latches, bolts, padlocks
+            }
+            // Q. Door hardware (handles, closers, bolts, locks)
+            else if (
               name.includes('Handle_') ||
               name.includes('Closer_') ||
               name.includes('Door_Handle') ||
               name.includes('Door_Closer') ||
               name.includes('Slide_Bolt') ||
-              name.includes('Padlock') ||
-              name.includes('railing')
+              name.includes('Padlock')
             ) {
               m.material = matDoorHardware;
-            } else if (name.includes('Fire_Alarm')) {
+            }
+            // R. Door frames, architraves, jambs, sills & Light beech portal surround
+            else if (
+              name.includes('Door_Frame') ||
+              name.includes('Door_Jamb') ||
+              name.includes('Door_Head') ||
+              name.includes('Door_Sill') ||
+              name.includes('Door_Thresh') ||
+              name.includes('Architrave') ||
+              name.includes('Door_Reveal') ||
+              name.includes('Portal_')
+            ) {
+              m.material = matDoorFrame;
+            }
+            // S. Door leaves
+            else if (
+              name.includes('Door_Left') ||
+              name.includes('Door_Right') ||
+              name.includes('Door_Leaf') ||
+              (name.includes('Door_') && !name.includes('Frame') && !name.includes('Jamb') && !name.includes('Head') && !name.includes('Sill') && !name.includes('Portal'))
+            ) {
+              m.material = matDoorLeaf;
+            }
+            // T. Fire alarm & emergency equipment
+            else if (name.includes('Fire_Alarm') || name.includes('fire riser') || name.includes('fire hose')) {
               m.material = matFireRed;
-            } else if (name.includes('Skirting')) {
-              m.material = matGranite;
-            } else {
-              // Main exterior walls, square portico piers, canopies, solid parapets, spandrels
-              m.material = matCream;
+            }
+            // U. Room boundary walls & corridor partition walls (Covering each room boundary)
+            else if (
+              name.includes('Corridor_Wall') ||
+              name.includes('Room_Interior_Wall') ||
+              name.includes('Room_Wall') ||
+              name.includes('Partition') ||
+              name.includes('partition')
+            ) {
+              m.material = matInteriorWall;
+            }
+            // V. Room interior floor slabs
+            else if (
+              name.includes('Room_Interior_Floor') ||
+              name.includes('Room_Floor')
+            ) {
+              m.material = matRoomFloor;
+            }
+            // W. Ceilings & soffits
+            else if (
+              ln.includes('ceiling') || 
+              ln.includes('soffit') || 
+              ln.includes('underside') ||
+              name.includes('transverse beam') ||
+              name.includes('soffit beam')
+            ) {
+              m.material = matCeilingSoffit;
+            }
+            // X. Interior corridor walkways & gallery slabs
+            else if (
+              ln.includes('walkway') || 
+              ln.includes('gallery floor') || 
+              ln.includes('gallery slab') || 
+              ln.includes('slab') ||
+              name.includes('Walkway') ||
+              (ln.includes('corridor') && !name.includes('Corridor_Wall'))
+            ) {
+              m.material = matFloorWalkway;
+            }
+            // Y. Exterior walls enclosing building and rooms (Side elevation wall, Rear elevation wall, Front wing wall, etc.)
+            else {
+              m.material = matMainFacade;
             }
 
             let floor = 0;
-            if (name.includes('51') || name.includes('Floor_4') || yPos > 16.8) floor = 4;
-            else if (name.includes('41') || name.includes('Floor_3') || yPos > 12.6) floor = 3;
-            else if (name.includes('31') || name.includes('Floor_2') || yPos > 8.4) floor = 2;
-            else if (name.includes('21') || name.includes('Floor_1') || yPos > 4.2) floor = 1;
+            if (name.includes('50') || name.includes('51') || name.includes('Floor_4') || yPos > 16.8) floor = 4;
+            else if (name.includes('40') || name.includes('41') || name.includes('Floor_3') || yPos > 12.6) floor = 3;
+            else if (name.includes('30') || name.includes('31') || name.includes('Floor_2') || yPos > 8.4) floor = 2;
+            else if (name.includes('20') || name.includes('21') || name.includes('Floor_1') || yPos > 4.2) floor = 1;
             else floor = 0;
 
             const isDoor = name.includes('Door') || name.includes('Placard') || name.includes('Closer') || name.includes('Handle');
@@ -1415,10 +2229,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
               name
             });
 
-            // All GLB meshes start HIDDEN — the construction sequence reveals them
-            // progressively. Setting visible=true here caused the 5-6 second
-            // full-building flash before executeConstructionSequence ran.
-            m.visible = false;
+            // All GLB meshes are visible by default
+            m.visible = true;
           }
         });
 
@@ -1435,8 +2247,8 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
         // Ensure all 45 rooms are accurately registered with exact door midpoint and outward normal
         const allDoors: RoomDoorRecord[] = [];
         for (let f = 1; f <= 5; f++) {
-          for (let r = 11; r <= 19; r++) {
-            const code = `A-${f}${r}`;
+          for (let r = 1; r <= 9; r++) {
+            const code = `A-${f}0${r}`;
             const geom = getRoomDoorGeometry(code);
             allDoors.push({
               roomCode: code,
@@ -1452,6 +2264,15 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
         meshesRef.current = collected;
         scene.add(root);
         setIsModelLoaded(true);
+
+        // Immediate complete visibility of all architectural components
+        collected.forEach(item => {
+          item.mesh.visible = true;
+          item.mesh.scale.set(1, 1, 1);
+          item.mesh.position.y = item.origY;
+        });
+        if (atriumFloorMeshRef.current) atriumFloorMeshRef.current.visible = true;
+        pottedPlantsRef.current.forEach(p => { p.visible = true; });
       },
       undefined,
       (err) => console.warn('Model load issue:', err)
@@ -1544,7 +2365,7 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
       // Level 1: Ground Atrium Floor
       posPoints.push(new THREE.Vector3(0, 1.8, -12.6));
       if (normal.x < -0.5) {
-        // Right Gallery (East wing, e.g. A-119)
+        // Right Gallery (East wing, e.g. A-109)
         lookPoints.push(new THREE.Vector3(8.27, 1.8, -12.6));
 
         posPoints.push(new THREE.Vector3(4.8, 1.8, -12.6));
@@ -1879,11 +2700,69 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     };
   }, [executeContinuousIndoorPath, onArrivedAtRoom]);
 
+  const flyToPreset = useCallback((presetKey: CameraPresetKey) => {
+    const preset = CAMERA_PRESETS[presetKey];
+    if (!preset || !cameraRef.current || !controlsRef.current) return;
+    const camera = cameraRef.current;
+    const controls = controlsRef.current;
+
+    setActiveCameraPreset(presetKey);
+    isFlyingRef.current = true;
+    controls.enabled = false;
+
+    // Restore full architectural model visibility whenever switching views
+    meshesRef.current.forEach(item => {
+      item.mesh.visible = true;
+      item.mesh.scale.set(1, 1, 1);
+      item.mesh.position.y = item.origY;
+    });
+    if (atriumFloorMeshRef.current) atriumFloorMeshRef.current.visible = true;
+    pottedPlantsRef.current.forEach(p => { p.visible = true; });
+    if (groundMeshRef.current) groundMeshRef.current.visible = true;
+
+    const startPos = camera.position.clone();
+    const startTarget = controls.target.clone();
+    const startFov = camera.fov;
+
+    const endPos = new THREE.Vector3(...preset.pos);
+    const endTarget = new THREE.Vector3(...preset.target);
+    const endFov = preset.fov;
+
+    const startTime = performance.now();
+    const duration = 1200;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      const ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      camera.position.lerpVectors(startPos, endPos, ease);
+      const curTarget = new THREE.Vector3().lerpVectors(startTarget, endTarget, ease);
+      controls.target.copy(curTarget);
+      camera.lookAt(curTarget);
+      camera.fov = THREE.MathUtils.lerp(startFov, endFov, ease);
+      camera.updateProjectionMatrix();
+
+      if (t < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        isFlyingRef.current = false;
+        controls.enabled = true;
+        controls.target.copy(endTarget);
+        setTelemetryText(`VIEWPORT PRESET LOCKED: ${preset.name.toUpperCase()} • FOV: ${preset.fov}°`);
+      }
+    };
+    requestAnimationFrame(tick);
+  }, []);
+
   // Expose test helpers for automated headless verification
   useEffect(() => {
     (window as any).__twinViewer = {
       zoomToRoom,
       executeContinuousIndoorPath,
+      resetToFrontView: () => flyToPreset('front'),
+      setCameraPreset: (presetKey: CameraPresetKey) => flyToPreset(presetKey),
+      flyToPreset,
       setCamera: (px: number, py: number, pz: number, tx: number, ty: number, tz: number) => {
         if (cameraRef.current && controlsRef.current) {
           isFlyingRef.current = false;
@@ -1905,7 +2784,7 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
         }
       }
     };
-  }, [zoomToRoom, executeContinuousIndoorPath]);
+  }, [zoomToRoom, executeContinuousIndoorPath, flyToPreset]);
 
   // -------------------------------------------------------------------------
   // 5. Interactive 3D Room Clicking (Raycasting)
@@ -2160,11 +3039,29 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
     }, 1500);
   }, [onConstructionComplete, executeContinuousIndoorPath]);
 
-  // When model is loaded and viewer becomes active, trigger the full 14s construction and room approach
+  // When model is loaded and viewer becomes active:
+  // If ?model=1 is present (direct 3D model inspection), show complete building immediately in Survey View!
   useEffect(() => {
     if (isActive && isModelLoaded && !hasConstructedRef.current) {
       hasConstructedRef.current = true;
-      executeConstructionSequence();
+      const isDirectModelInspect = typeof window !== 'undefined' && 
+        (new URLSearchParams(window.location.search).get('model') === '1');
+
+      if (isDirectModelInspect) {
+        // Immediate full visibility of all architectural components in photorealistic Survey View
+        meshesRef.current.forEach(item => {
+          item.mesh.visible = true;
+          item.mesh.scale.set(1, 1, 1);
+          item.mesh.position.y = item.origY;
+        });
+        if (atriumFloorMeshRef.current) atriumFloorMeshRef.current.visible = true;
+        pottedPlantsRef.current.forEach(p => { p.visible = true; });
+        if (groundMeshRef.current) groundMeshRef.current.visible = true;
+        setAnimStage('idle');
+        setTelemetryText('REALISTIC DIGITAL TWIN SYNCHRONIZED • ALL ARCHITECTURAL DETAILS ACTIVE');
+      } else {
+        executeConstructionSequence();
+      }
     }
   }, [isActive, isModelLoaded, executeConstructionSequence]);
 
@@ -2174,15 +3071,19 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
       zoomToRoom,
       executeConstructionSequence,
       resetToFrontView: () => {
-        if (!cameraRef.current || !controlsRef.current) return;
-        cameraRef.current.position.set(3.4, 1.80, 36.5);
-        cameraRef.current.lookAt(0.174, 11.20, 1.50);
-        controlsRef.current.target.set(0.174, 11.20, 1.50);
-        controlsRef.current.update();
+        meshesRef.current.forEach(item => {
+          item.mesh.visible = true;
+          item.mesh.scale.set(1, 1, 1);
+          item.mesh.position.y = item.origY;
+        });
+        if (atriumFloorMeshRef.current) atriumFloorMeshRef.current.visible = true;
+        pottedPlantsRef.current.forEach(p => { p.visible = true; });
+        if (groundMeshRef.current) groundMeshRef.current.visible = true;
+        flyToPreset('front');
         setAnimStage('idle');
       }
     };
-  }, [zoomToRoom, executeConstructionSequence]);
+  }, [zoomToRoom, executeConstructionSequence, flyToPreset]);
 
   useEffect(() => {
     if (prevTargetRoomRef.current !== targetRoomNumber) {
@@ -2282,7 +3183,7 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
         position: 'relative',
         width: '100%',
         height: '100%',
-        backgroundColor: '#949aa2',
+        backgroundColor: '#cfd4d8',
         overflow: 'hidden'
       }}
     >
@@ -2410,6 +3311,75 @@ export const BuildingDigitalTwinViewer: React.FC<BuildingDigitalTwinViewerProps>
           </div>
         </div>
       )}
+
+      {/* 3. Floating Camera Perspectives Toolbar */}
+      <div style={{
+        position: 'absolute',
+        bottom: '20px',
+        right: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        zIndex: 30,
+        backgroundColor: 'rgba(15, 23, 42, 0.92)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(56, 189, 248, 0.35)',
+        borderRadius: '12px',
+        padding: '10px 12px',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.5), 0 0 16px rgba(56,189,248,0.15)'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '8px',
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          paddingBottom: '6px',
+          marginBottom: '2px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Compass size={13} color="#38bdf8" />
+            <span style={{ fontSize: '10.5px', fontWeight: 800, color: '#38bdf8', letterSpacing: '0.06em', fontFamily: 'monospace' }}>
+              CAMERA PERSPECTIVES
+            </span>
+          </div>
+          <span style={{ fontSize: '9px', color: '#94a3b8', fontFamily: 'monospace' }}>
+            {CAMERA_PRESETS[activeCameraPreset]?.fov}° FOV
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {(Object.keys(CAMERA_PRESETS) as CameraPresetKey[]).map((key) => {
+            const p = CAMERA_PRESETS[key];
+            const isSelected = activeCameraPreset === key;
+            return (
+              <button
+                key={key}
+                onClick={() => flyToPreset(key)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.22)' : 'rgba(30, 41, 59, 0.70)',
+                  border: isSelected ? '1.5px solid #38bdf8' : '1px solid rgba(148, 163, 184, 0.2)',
+                  color: isSelected ? '#38bdf8' : '#cbd5e1',
+                  borderRadius: '6px',
+                  padding: '5px 9px',
+                  fontSize: '11px',
+                  fontWeight: isSelected ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.18s ease',
+                  boxShadow: isSelected ? '0 0 12px rgba(56, 189, 248, 0.3)' : 'none'
+                }}
+                title={p.desc}
+              >
+                <span>{p.icon}</span>
+                <span>{p.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <style>{`
         @keyframes fadeInScale {

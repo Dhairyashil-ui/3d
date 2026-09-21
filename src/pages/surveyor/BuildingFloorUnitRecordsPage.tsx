@@ -39,14 +39,14 @@ export const BuildingFloorUnitRecordsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedParcelId, setSelectedParcelId] = useState<string>(selection.selectedParcelId || landParcelsData[0].parcelId);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>(selection.selectedBuildingId || buildingsData[0].buildingId);
-  const [selectedFloorId, setSelectedFloorId] = useState<string>(selection.selectedFloorId || 'FLR-000003');
-  const [selectedUnitId, setSelectedUnitId] = useState<string>(selection.selectedUnitId || 'UNT-000302');
+  const [selectedFloorId, setSelectedFloorId] = useState<string>(selection.selectedFloorId || 'FLR-000001');
+  const [selectedUnitId, setSelectedUnitId] = useState<string>(selection.selectedUnitId || 'UNT-000109');
 
   // Expanded tree states
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({
     'PAR-000123': true,
     'BLD-000781': true,
-    'FLR-000003': true
+    'FLR-000001': true
   });
 
   const toggleNode = (nodeId: string) => {
@@ -335,25 +335,48 @@ export const BuildingFloorUnitRecordsPage: React.FC = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => navigate(`/surveyor/property-detail?parcelId=${currentParcel.parcelId}`)}
-              style={{
-                backgroundColor: '#1976d2',
-                color: '#ffffff',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 2px 4px rgba(25, 118, 210, 0.3)'
-              }}
-            >
-              <Eye size={14} /> Open Property Dossier
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button
+                onClick={() => navigate(`/surveyor/3d-intelligence?search=1&room=A-${currentUnit.flatNumber}`)}
+                style={{
+                  backgroundColor: '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '8px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(2, 132, 199, 0.3)'
+                }}
+                title={`Inspect Room A-${currentUnit.flatNumber} in 3D Digital Twin`}
+              >
+                <Box size={14} /> 3D Digital Twin (Room A-{currentUnit.flatNumber})
+              </button>
+
+              <button
+                onClick={() => navigate(`/surveyor/property-detail?parcelId=${currentParcel.parcelId}`)}
+                style={{
+                  backgroundColor: '#1976d2',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 4px rgba(25, 118, 210, 0.3)'
+                }}
+              >
+                <Eye size={14} /> Open Property Dossier
+              </button>
+            </div>
           </div>
 
           {/* Level 1: Parcel Record */}
@@ -479,7 +502,7 @@ export const BuildingFloorUnitRecordsPage: React.FC = () => {
           <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #a7f3d0', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ backgroundColor: '#ecfdf5', padding: '10px 16px', borderBottom: '1px solid #a7f3d0', fontSize: '12px', fontWeight: 700, color: '#065f46', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Box size={16} color="#059669" /> 5. 3D Spatial Volume Representation (VOL-000982)
+                <Box size={16} color="#059669" /> 5. 3D Spatial Volume Representation ({currentVolume.volumeId})
               </span>
               <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', backgroundColor: '#d1fae5', color: '#065f46', fontWeight: 700 }}>
                 {currentVolume.validationStatus}

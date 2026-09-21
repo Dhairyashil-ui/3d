@@ -294,18 +294,18 @@ export const MOCK_BUILDINGS: BuildingRecord[] = [
   {
     buildingId: 'BLD-000781',
     parcelId: 'PAR-000123',
-    ulpin: '230410010020101',
-    buildingName: 'Gulmohar Heights Residency',
-    buildingType: 'Residential Apartment',
+    ulpin: '27250401420089',
+    buildingName: 'Pralhad P. Chhabria Research Center (PCCRC)',
+    buildingType: 'Commercial Complex',
     buildingStatus: 'Existing & Occupied',
     totalFloors: 5,
-    approxHeightM: 18.6,
-    footprintAreaSqm: 540.8,
-    builtUpAreaSqm: 2485.0,
+    approxHeightM: 21.0,
+    footprintAreaSqm: 5237.0,
+    builtUpAreaSqm: 26185.0,
     roofType: 'Flat RCC Slab',
     constructionYear: '2019',
     source: 'Drone Photogrammetry + LiDAR LAS 1.4',
-    confidencePct: 96.8,
+    confidencePct: 98.8,
     verificationStatus: 'Verified',
     farRatio: 3.24
   },
@@ -352,196 +352,138 @@ export const MOCK_FLOORS: FloorRecord[] = [
     floorId: 'FLR-000001',
     buildingId: 'BLD-000781',
     floorNumber: 0,
-    floorName: 'Ground Floor',
-    estimatedElevationM: 524.8,
-    estimatedHeightM: 3.8,
-    unitsCount: 2,
+    floorName: 'Level 1 (Ground Floor Atrium Tier)',
+    estimatedElevationM: 562.4,
+    estimatedHeightM: 4.2,
+    unitsCount: 9,
     geometryStatus: 'Available',
     source: 'Photogrammetry Mesh + Terrestrial Inspection',
     confidencePct: 98.4,
     verificationStatus: 'Verified',
-    builtUpAreaSqm: 510.0
+    builtUpAreaSqm: 5237.0
   },
   {
     floorId: 'FLR-000002',
     buildingId: 'BLD-000781',
     floorNumber: 1,
-    floorName: 'First Floor',
-    estimatedElevationM: 528.6,
-    estimatedHeightM: 3.4,
-    unitsCount: 4,
+    floorName: 'Level 2 (Second Floor Gallery)',
+    estimatedElevationM: 566.6,
+    estimatedHeightM: 4.2,
+    unitsCount: 9,
     geometryStatus: 'Available',
     source: 'Photogrammetry Mesh',
     confidencePct: 97.2,
     verificationStatus: 'Verified',
-    builtUpAreaSqm: 495.0
+    builtUpAreaSqm: 5237.0
   },
   {
     floorId: 'FLR-000003',
     buildingId: 'BLD-000781',
     floorNumber: 2,
-    floorName: 'Second Floor',
-    estimatedElevationM: 532.0,
-    estimatedHeightM: 3.4,
-    unitsCount: 4,
+    floorName: 'Level 3 (Third Floor Gallery)',
+    estimatedElevationM: 570.8,
+    estimatedHeightM: 4.2,
+    unitsCount: 9,
     geometryStatus: 'Available',
     source: 'Photogrammetry Mesh',
     confidencePct: 96.8,
     verificationStatus: 'Verified',
-    builtUpAreaSqm: 495.0
+    builtUpAreaSqm: 5237.0
   },
   {
     floorId: 'FLR-000004',
     buildingId: 'BLD-000781',
     floorNumber: 3,
-    floorName: 'Third Floor',
-    estimatedElevationM: 535.4,
-    estimatedHeightM: 3.4,
-    unitsCount: 4,
+    floorName: 'Level 4 (Fourth Floor Gallery)',
+    estimatedElevationM: 575.0,
+    estimatedHeightM: 4.2,
+    unitsCount: 9,
     geometryStatus: 'Available',
     source: 'Photogrammetry Mesh + Oblique Drone',
     confidencePct: 96.5,
     verificationStatus: 'Verified',
-    builtUpAreaSqm: 495.0
+    builtUpAreaSqm: 5237.0
   },
   {
     floorId: 'FLR-000005',
     buildingId: 'BLD-000781',
     floorNumber: 4,
-    floorName: 'Fourth Floor (Penthouse)',
-    estimatedElevationM: 538.8,
-    estimatedHeightM: 3.6,
-    unitsCount: 4,
+    floorName: 'Level 5 (Fifth Floor Gallery)',
+    estimatedElevationM: 579.2,
+    estimatedHeightM: 4.2,
+    unitsCount: 9,
     geometryStatus: 'Available',
     source: 'LiDAR + Photogrammetry',
     confidencePct: 95.1,
-    verificationStatus: 'Pending',
-    builtUpAreaSqm: 490.0
+    verificationStatus: 'Verified',
+    builtUpAreaSqm: 5237.0
   }
 ];
 
-export const MOCK_UNITS: UnitRecord[] = [
-  {
-    unitId: 'UNT-000301',
-    flatNumber: '301',
-    floorId: 'FLR-000004',
-    floorNumber: 3,
-    buildingId: 'BLD-000781',
-    parcelId: 'PAR-000123',
-    ownersCount: 1,
-    ownerNames: ['Rajesh Sharma'],
-    useType: 'Residential',
-    carpetAreaSqm: 110.0,
-    propertyTaxId: 'PMC-PT-2026-8840',
-    propertyStatus: 'Occupied',
-    rorLinkage: 'Linked',
-    threeDVolumeStatus: 'Available',
-    verificationStatus: 'Verified',
-    volumeId: 'VOL-000981'
-  },
-  {
-    unitId: 'UNT-000302',
-    flatNumber: '302',
-    floorId: 'FLR-000004',
-    floorNumber: 3,
-    buildingId: 'BLD-000781',
-    parcelId: 'PAR-000123',
-    ownersCount: 2,
-    ownerNames: ['Amitabh Verma', 'Sunita Verma'],
-    useType: 'Residential',
-    carpetAreaSqm: 115.5,
-    propertyTaxId: 'PMC-PT-2026-8841',
-    propertyStatus: 'Occupied',
-    rorLinkage: 'Linked',
-    threeDVolumeStatus: 'Available',
-    verificationStatus: 'Pending',
-    volumeId: 'VOL-000982'
-  },
-  {
-    unitId: 'UNT-000303',
-    flatNumber: '303',
-    floorId: 'FLR-000004',
-    floorNumber: 3,
-    buildingId: 'BLD-000781',
-    parcelId: 'PAR-000123',
-    ownersCount: 1,
-    ownerNames: ['Deepak Chouhan'],
-    useType: 'Residential',
-    carpetAreaSqm: 112.0,
-    propertyTaxId: 'PMC-PT-2026-8842',
-    propertyStatus: 'Occupied',
-    rorLinkage: 'Linked',
-    threeDVolumeStatus: 'Available',
-    verificationStatus: 'Verified',
-    volumeId: 'VOL-000983'
-  },
-  {
-    unitId: 'UNT-000304',
-    flatNumber: '304',
-    floorId: 'FLR-000004',
-    floorNumber: 3,
-    buildingId: 'BLD-000781',
-    parcelId: 'PAR-000123',
-    ownersCount: 1,
-    ownerNames: ['Pooja Saxena'],
-    useType: 'Residential',
-    carpetAreaSqm: 114.0,
-    propertyTaxId: 'PMC-PT-2026-8843',
-    propertyStatus: 'Occupied',
-    rorLinkage: 'Linked',
-    threeDVolumeStatus: 'Available',
-    verificationStatus: 'Verified',
-    volumeId: 'VOL-000984'
-  }
-];
+const PCCRC_ROOM_NAMES_STORE: Record<number, string> = {
+  1: "Central Atrium Auditorium & Lecture Hall",
+  2: "CAD & BIM Geospatial Mapping Station",
+  3: "Embedded Systems & IoT Innovation Lab",
+  4: "AI & Neural Network Supercomputing Center",
+  5: "Digital Twin & VR Simulation Studio",
+  6: "Robotics & Autonomous Drones Facility",
+  7: "Materials Science & Micro-Analysis Lab",
+  8: "Faculty Research & Seminar Conference Hall",
+  9: "High-Performance Computing Research Lab"
+};
 
-export const MOCK_SPATIAL_VOLUMES: SpatialVolumeRecord[] = [
-  {
-    volumeId: 'VOL-000981',
-    buildingId: 'BLD-000781',
-    floorId: 'FLR-000004',
-    unitId: 'UNT-000301',
-    heightM: 3.2,
-    baseElevationM: 535.4,
-    topElevationM: 538.6,
-    volumeM3: 352.0,
-    areaSqm: 110.0,
-    source: 'Upstream 3D GIS Reality Mesh Pipeline',
-    confidencePct: 97.8,
-    validationStatus: 'Passed Orthogonal Check',
-    timestamp: '2026-09-05 14:32:10'
-  },
-  {
-    volumeId: 'VOL-000982',
-    buildingId: 'BLD-000781',
-    floorId: 'FLR-000004',
-    unitId: 'UNT-000302',
-    heightM: 3.2,
-    baseElevationM: 535.4,
-    topElevationM: 538.6,
-    volumeM3: 369.6,
-    areaSqm: 115.5,
-    source: 'Upstream 3D GIS Reality Mesh Pipeline',
-    confidencePct: 97.4,
-    validationStatus: 'Within Permissible Tolerance',
-    timestamp: '2026-09-05 14:32:15'
-  },
-  {
-    volumeId: 'VOL-000983',
-    buildingId: 'BLD-000781',
-    floorId: 'FLR-000004',
-    unitId: 'UNT-000303',
-    heightM: 3.2,
-    baseElevationM: 535.4,
-    topElevationM: 538.6,
-    volumeM3: 358.4,
-    areaSqm: 112.0,
-    source: 'Upstream 3D GIS Reality Mesh Pipeline',
-    confidencePct: 97.1,
-    validationStatus: 'Passed Orthogonal Check',
-    timestamp: '2026-09-05 14:32:20'
+const generatedUnits: UnitRecord[] = [];
+const generatedVolumes: SpatialVolumeRecord[] = [];
+
+for (let f = 1; f <= 5; f++) {
+  const floorId = `FLR-00000${f}`;
+  const baseElev = 562.4 + (f - 1) * 4.2;
+
+  for (let r = 1; r <= 9; r++) {
+    const unitNum = `${f}0${r}`;
+    const unitId = `UNT-000${unitNum}`;
+    const volumeId = `VOL-000${unitNum}`;
+    const roomTitle = PCCRC_ROOM_NAMES_STORE[r] || `Unit ${unitNum} Academic Lab`;
+
+    generatedUnits.push({
+      unitId,
+      flatNumber: unitNum,
+      floorId,
+      floorNumber: f - 1,
+      buildingId: 'BLD-000781',
+      parcelId: 'PAR-000123',
+      ownersCount: 1,
+      ownerNames: [roomTitle],
+      useType: 'Commercial',
+      carpetAreaSqm: Number(((650 + (r % 5) * 45) * 0.092903).toFixed(1)),
+      propertyTaxId: `PMRDA-PT-2026-PCCRC-${unitNum}`,
+      propertyStatus: 'Occupied',
+      rorLinkage: 'Linked',
+      threeDVolumeStatus: 'Available',
+      verificationStatus: 'Verified',
+      volumeId
+    });
+
+    generatedVolumes.push({
+      volumeId,
+      buildingId: 'BLD-000781',
+      floorId,
+      unitId,
+      heightM: 3.4,
+      baseElevationM: Number(baseElev.toFixed(1)),
+      topElevationM: Number((baseElev + 3.4).toFixed(1)),
+      volumeM3: Number((((650 + (r % 5) * 45) * 0.092903) * 3.4).toFixed(1)),
+      areaSqm: Number(((650 + (r % 5) * 45) * 0.092903).toFixed(1)),
+      source: 'Authoritative PCCRC 3D Architectural Reconstruction',
+      confidencePct: 98.5,
+      validationStatus: 'Passed Orthogonal Check',
+      timestamp: '2026-09-20 03:00:00'
+    });
   }
-];
+}
+
+export const MOCK_UNITS: UnitRecord[] = generatedUnits;
+export const MOCK_SPATIAL_VOLUMES: SpatialVolumeRecord[] = generatedVolumes;
 
 export const MOCK_GT_POINTS: GroundTruthPoint[] = [
   { seqNo: 1, plotNo: '1', lat: 23.242091, lng: 77.427639, elevationM: 524.2, accuracyM: 0.012, status: 'Approved' },

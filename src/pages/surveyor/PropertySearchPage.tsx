@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiClient } from '../../services/apiClient';
 import { selectionStore, useSelectionStore } from '../../services/selectionStore';
@@ -242,7 +242,7 @@ export const PropertySearchPage: React.FC = () => {
               <option value="KHASRA">Khasra Number</option>
               <option value="PARCEL_ID">Parcel ID (e.g. PAR-000123)</option>
               <option value="BUILDING_ID">Building ID (e.g. BLD-000781)</option>
-              <option value="UNIT_NO">Flat / Unit Number (e.g. 302)</option>
+              <option value="UNIT_NO">Flat / Unit Number (e.g. 109)</option>
               <option value="TAX_ID">Property Tax ID</option>
             </select>
           </div>
@@ -250,7 +250,7 @@ export const PropertySearchPage: React.FC = () => {
           {/* Search Query Input */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', gridColumn: 'span 2' }}>
             <label style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155' }}>
-              Enter Search Query (e.g. 230410010020101, 112/3, PAR-000123, BLD-000781, 302)
+              Enter Search Query (e.g. 27250401420089, 112/3, PAR-000123, BLD-000781, 109)
             </label>
             <div style={{ position: 'relative', display: 'flex' }}>
               <input

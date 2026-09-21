@@ -1,1 +1,145 @@
-{}
+{
+  "relation/5354432": {
+    "sources": ["Dassault Systemes 3DS Red Fort Campus Hinjawadi Phase 1"],
+    "reference_notes": "Iconic Red Fort architectural aesthetic: deep red terracotta/sandstone composite panels, continuous horizontal ribbon glass bands with solar tint, rooftop HVAC chiller clusters and communication towers",
+    "cladding_rgb": [0.62, 0.22, 0.18],
+    "glass_rgb": [0.06, 0.12, 0.15],
+    "bay_width_m": 3.2,
+    "window_fraction": 0.72,
+    "horizontal_bands": true,
+    "entrance_direction": "north",
+    "rooftop_equipment": true
+  },
+  "way/239275013": {
+    "sources": ["Dassault Systemes Sky Building Hinjawadi"],
+    "reference_notes": "Sky wing with contemporary silver-white ACP framing and deep blue solar glazing",
+    "cladding_rgb": [0.82, 0.84, 0.88],
+    "glass_rgb": [0.04, 0.10, 0.18],
+    "bay_width_m": 3.0,
+    "window_fraction": 0.78,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359729198": {
+    "sources": ["Wipro Technologies Phase 1 Campus Hinjawadi"],
+    "reference_notes": "Wipro tech campus: brick red terracotta block cladding, charcoal grey structural mullions, and reflective dark glass facade with entrance portico",
+    "cladding_rgb": [0.55, 0.24, 0.16],
+    "glass_rgb": [0.05, 0.08, 0.12],
+    "bay_width_m": 3.4,
+    "window_fraction": 0.65,
+    "horizontal_bands": true,
+    "entrance_direction": "east",
+    "rooftop_equipment": true
+  },
+  "relation/5351455": {
+    "sources": ["Tata Technologies Ltd Campus Hinjawadi"],
+    "reference_notes": "High-tech curved engineering campus: metallic silver aluminum facade, panoramic glazed curtain walls, architectural brise-soleil",
+    "cladding_rgb": [0.75, 0.77, 0.80],
+    "glass_rgb": [0.05, 0.12, 0.16],
+    "bay_width_m": 2.8,
+    "window_fraction": 0.82,
+    "horizontal_bands": true,
+    "entrance_direction": "north",
+    "rooftop_equipment": true
+  },
+  "way/1460519904": {
+    "sources": ["HCL Technologies Amber Fort Hinjawadi Phase 1"],
+    "reference_notes": "Amber Fort campus styling: warm ochre/amber architectural sandstone cladding, bronze tinted reflective double glazing",
+    "cladding_rgb": [0.72, 0.48, 0.22],
+    "glass_rgb": [0.10, 0.11, 0.08],
+    "bay_width_m": 3.2,
+    "window_fraction": 0.68,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359525809": {
+    "sources": ["Birlasoft SDB 1 Campus Hinjawadi"],
+    "reference_notes": "Birlasoft Special Development Block: crisp white and charcoal composite panels, blue solar control glass curtain walls",
+    "cladding_rgb": [0.85, 0.86, 0.88],
+    "glass_rgb": [0.06, 0.14, 0.22],
+    "bay_width_m": 3.0,
+    "window_fraction": 0.75,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359525897": {
+    "sources": ["Birlasoft SDB 2 Campus Hinjawadi"],
+    "reference_notes": "Birlasoft SDB 2 software development center: slate grey and white architectural finishes with reflective glazing",
+    "cladding_rgb": [0.42, 0.45, 0.48],
+    "glass_rgb": [0.05, 0.11, 0.18],
+    "bay_width_m": 3.0,
+    "window_fraction": 0.70,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359525796": {
+    "sources": ["LTIMindtree Hinjawadi Phase 1"],
+    "reference_notes": "Modern corporate IT facility: blue glass curtain wall system with silver horizontal louvers and concrete corner cores",
+    "cladding_rgb": [0.68, 0.70, 0.72],
+    "glass_rgb": [0.03, 0.09, 0.17],
+    "bay_width_m": 2.8,
+    "window_fraction": 0.80,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359525805": {
+    "sources": ["Siemens Industry Software Hinjawadi"],
+    "reference_notes": "Siemens engineering facility: sleek titanium-grey industrial finish, dark green-blue energy efficient glass",
+    "cladding_rgb": [0.50, 0.52, 0.55],
+    "glass_rgb": [0.04, 0.12, 0.14],
+    "bay_width_m": 3.2,
+    "window_fraction": 0.72,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359749212": {
+    "sources": ["KPIT Technologies R&D Building Hinjawadi"],
+    "reference_notes": "Automotive software engineering facility: bright white facade with cobalt blue glass curtain bays",
+    "cladding_rgb": [0.90, 0.92, 0.94],
+    "glass_rgb": [0.04, 0.10, 0.20],
+    "bay_width_m": 3.0,
+    "window_fraction": 0.75,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/544581131": {
+    "sources": ["Radius Tech Park Hinjawadi"],
+    "reference_notes": "Radius Tech Park commercial hub: modern high-density corporate tower with curtain wall glazing and terrace canopies",
+    "cladding_rgb": [0.60, 0.62, 0.65],
+    "glass_rgb": [0.05, 0.11, 0.16],
+    "bay_width_m": 2.9,
+    "window_fraction": 0.76,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  },
+  "way/359573621": {
+    "sources": ["Vivanta by Taj Hinjawadi"],
+    "reference_notes": "Luxury business hotel: warm ivory and sandstone facade with bronze architectural framing and ambient evening illumination bays",
+    "cladding_rgb": [0.82, 0.75, 0.68],
+    "glass_rgb": [0.08, 0.10, 0.12],
+    "bay_width_m": 3.5,
+    "window_fraction": 0.60,
+    "horizontal_bands": false,
+    "rooftop_equipment": true
+  },
+  "way/544598096": {
+    "sources": ["Radisson Blu Hotel Hinjawadi"],
+    "reference_notes": "Radisson Blu business hotel: dark grey textured stone panels with warm tinted window modules",
+    "cladding_rgb": [0.35, 0.36, 0.38],
+    "glass_rgb": [0.09, 0.10, 0.13],
+    "bay_width_m": 3.2,
+    "window_fraction": 0.58,
+    "horizontal_bands": false,
+    "rooftop_equipment": true
+  },
+  "way/359562158": {
+    "sources": ["Symbiosis Institute of International Business Hinjawadi"],
+    "reference_notes": "Symbiosis university campus: academic terracotta and beige exposed brickwork with white column accents and library bays",
+    "cladding_rgb": [0.70, 0.52, 0.38],
+    "glass_rgb": [0.06, 0.10, 0.14],
+    "bay_width_m": 3.2,
+    "window_fraction": 0.62,
+    "horizontal_bands": true,
+    "rooftop_equipment": true
+  }
+}

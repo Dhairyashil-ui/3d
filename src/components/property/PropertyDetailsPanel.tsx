@@ -1,7 +1,7 @@
 // NAKSHA V2.0 - Authoritative Property & Room Details HUD Overlay
 // Strictly Separated Identifiers:
 // 1. 14-Digit ULPIN: State(2) + District(2) + Taluka(2) + Village(4) + Building(4) -> 27-25-04-0142-0089
-// 2. Below that: Building & Room Unit ID: Building(4) + Floor(2) + Area(2) + Room(3) -> 0089-01-01-119
+// 2. Below that: Building & Room Unit ID: Building(4) + Floor(2) + Area(2) + Room(3) -> 0089-01-01-109
 // Clean, professional layout with integrated 3D Digital Twin controls (display mode, floor filter, point cloud, replay)
 
 import React, { useState } from 'react';
@@ -42,7 +42,7 @@ interface PropertyDetailsPanelProps {
 }
 
 export const PropertyDetailsPanel: React.FC<PropertyDetailsPanelProps> = ({
-  roomNumber = 'A-119',
+  roomNumber = 'A-109',
   onRoomSelect,
   onDisplayModeChange,
   currentDisplayMode,
@@ -138,7 +138,7 @@ export const PropertyDetailsPanel: React.FC<PropertyDetailsPanelProps> = ({
                 PROPERTY CADASTRE DETAILS
               </span>
               <span style={{ fontSize: '10px', color: '#94a3b8' }}>
-                PPCRC RESEARCH COMPLEX • PUNE
+                PCCRC RESEARCH COMPLEX • PUNE
               </span>
             </div>
           </div>
@@ -639,8 +639,8 @@ export const PropertyDetailsPanel: React.FC<PropertyDetailsPanelProps> = ({
                       LEVEL {f} ({f === 1 ? 'GROUND TIER' : `FLOOR ${f - 1}`}):
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {[11, 12, 13, 14, 15, 16, 17, 18, 19].map(r => {
-                        const code = `A-${f}${r}`;
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(r => {
+                        const code = `A-${f}0${r}`;
                         const isSel = code === roomNumber;
                         return (
                           <button

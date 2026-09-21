@@ -16,8 +16,8 @@ export interface SelectionState {
 const initialState: SelectionState = {
   selectedParcelId: 'PAR-000123',
   selectedBuildingId: 'BLD-000781',
-  selectedFloorId: 'FLR-000781-03',
-  selectedUnitId: 'UNT-000302',
+  selectedFloorId: 'FLR-000001',
+  selectedUnitId: 'UNT-000109',
   hoveredParcelId: null,
   viewMode: '2D',
   flyToTarget: { lat: 18.5847, lng: 73.7376, zoom: 18 },

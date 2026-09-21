@@ -11,8 +11,8 @@
 // - Building Number (4 digits): 0089
 // - Floor Number (2 digits): 01 to 05
 // - Area Number (2 digits): 01 to 03 (01=West Academic, 02=Central, 03=East)
-// - Room Number (3 digits): 111 to 519
-// Example: 0089-01-01-119 (Building 0089, Floor 01, Area 01, Room 119)
+// - Room Number (3 digits): 101 to 509
+// Example: 0089-01-01-109 (Building 0089, Floor 01, Area 01, Room 109)
 
 export interface FloorSegmentation {
   floorNumber: number;          // 1 to 5
@@ -46,7 +46,7 @@ export interface DoorCenterCloudRecord {
 }
 
 export interface RoomCadastreRecord {
-  roomCode: string;             // e.g. "A-119"
+  roomCode: string;             // e.g. "A-109"
   floorNumber: number;          // 1 to 5
   floorLabel: string;           // "Level 1 (Ground Atrium Tier)"
   
@@ -60,10 +60,10 @@ export interface RoomCadastreRecord {
   buildingNum4: string;         // "0089"
   
   // Building & Unit Number (Building-Floor-Area-Room)
-  buildingUnitId: string;       // "0089-01-01-119"
+  buildingUnitId: string;       // "0089-01-01-109"
   floorNum2: string;            // "01"
   areaNum2: string;             // "01"
-  roomNum3: string;             // "119"
+  roomNum3: string;             // "109"
   
   roomName: string;             // "High-Performance Computing Research Lab"
   wing: string;                 // "West Academic Wing"
@@ -122,34 +122,34 @@ const FLOOR_LABELS: Record<number, string> = {
 };
 
 const ROOM_NAMES: Record<number, string> = {
-  11: "Central Atrium Auditorium & Lecture Hall",
-  12: "CAD & BIM Geospatial Mapping Station",
-  13: "Embedded Systems & IoT Innovation Lab",
-  14: "AI & Neural Network Supercomputing Center",
-  15: "Digital Twin & VR Simulation Studio",
-  16: "Robotics & Autonomous Drones Facility",
-  17: "Materials Science & Micro-Analysis Lab",
-  18: "Faculty Research & Seminar Conference Hall",
-  19: "High-Performance Computing Research Lab"
+  1: "Central Atrium Auditorium & Lecture Hall",
+  2: "CAD & BIM Geospatial Mapping Station",
+  3: "Embedded Systems & IoT Innovation Lab",
+  4: "AI & Neural Network Supercomputing Center",
+  5: "Digital Twin & VR Simulation Studio",
+  6: "Robotics & Autonomous Drones Facility",
+  7: "Materials Science & Micro-Analysis Lab",
+  8: "Faculty Research & Seminar Conference Hall",
+  9: "High-Performance Computing Research Lab"
 };
 
 export const PPCRC_ROOMS_CADASTRE: RoomCadastreRecord[] = [];
 export const PCCRC_ROOMS_CADASTRE = PPCRC_ROOMS_CADASTRE;
 
-// Populate 45 rooms across Floors 1 to 5
+// Populate 45 rooms across Floors 1 to 5 (101-109, 201-209, 301-309, 401-409, 501-509)
 for (let f = 1; f <= 5; f++) {
   const floorHeightM = (f - 1) * 4.20;
   const floorMsl = BASE_MSL + floorHeightM;
   const floorLabel = FLOOR_LABELS[f] || `Level ${f} (Gallery Tier)`;
   const floorNum2 = `0${f}`;
 
-  for (let r = 11; r <= 19; r++) {
-    const code = `A-${f}${r}`;
-    const roomNum3 = `${f}${r}`;
-    const areaNum2 = r <= 14 ? "03" : r <= 17 ? "02" : "01";
+  for (let r = 1; r <= 9; r++) {
+    const code = `A-${f}0${r}`;
+    const roomNum3 = `${f}0${r}`;
+    const areaNum2 = r <= 4 ? "03" : r <= 7 ? "02" : "01";
     const buildingUnitId = `${BUILDING_NUM}-${floorNum2}-${areaNum2}-${roomNum3}`;
 
-    const angle = ((r - 11) / 9) * Math.PI * 1.6 - Math.PI * 0.8;
+    const angle = ((r - 1) / 9) * Math.PI * 1.6 - Math.PI * 0.8;
     const radiusM = 9.5;
     const dx = Math.cos(angle) * radiusM;
     const dz = Math.sin(angle) * radiusM;
@@ -160,40 +160,40 @@ for (let f = 1; f <= 5; f++) {
     const roomLat = Number((BASE_LAT + latOffset).toFixed(6));
     const roomLng = Number((BASE_LNG + lngOffset).toFixed(6));
 
-    // Calculate Door Center Cloud coordinates and Outward Normal
+    // Calculate Door Center Cloud coordinates and Outward Normal matching Blender model
     // Floor base elevation in 3D model increments by exactly 4.20m per tier
     const floorBaseY = (f - 1) * 4.20;
     const midY = floorBaseY + 1.23; // Exact center of door leaves in 3D model
-    let midX = 11.47;
+    let midX = 11.28;
     let midZ = -7.40;
     let normX = -1;
     let normY = 0;
     let normZ = 0;
 
-    if (r >= 11 && r <= 13) {
+    if (r >= 1 && r <= 3) {
       // Left Gallery (faces +X into corridor)
-      midX = -11.47;
+      midX = -11.28;
       normX = 1;
       normZ = 0;
-      if (r === 11) midZ = -7.40;
-      else if (r === 12) midZ = -12.60;
-      else if (r === 13) midZ = -17.80;
-    } else if (r >= 14 && r <= 16) {
+      if (r === 1) midZ = -7.40;
+      else if (r === 2) midZ = -12.60;
+      else if (r === 3) midZ = -17.80;
+    } else if (r >= 4 && r <= 6) {
       // Rear Gallery (faces +Z into corridor)
-      midZ = -24.07;
+      midZ = -23.89;
       normX = 0;
       normZ = 1;
-      if (r === 14) midX = -5.50;
-      else if (r === 15) midX = 0.00;
-      else if (r === 16) midX = 5.50;
+      if (r === 4) midX = -5.50;
+      else if (r === 5) midX = 0.00;
+      else if (r === 6) midX = 5.50;
     } else {
       // Right Gallery (faces -X into corridor)
-      midX = 11.47;
+      midX = 11.28;
       normX = -1;
       normZ = 0;
-      if (r === 17) midZ = -17.80;
-      else if (r === 18) midZ = -12.60;
-      else if (r === 19) midZ = -7.40;
+      if (r === 7) midZ = -17.80;
+      else if (r === 8) midZ = -12.60;
+      else if (r === 9) midZ = -7.40;
     }
 
     const floorSeg: FloorSegmentation = {
@@ -214,8 +214,7 @@ for (let f = 1; f <= 5; f++) {
       volumeM3: 0.966
     };
 
-    // Safe view distance of 3.20m positions camera directly in corridor walkway,
-    // safely inside the balustrade railing (which is at 3.79m to 3.92m), perfectly framing the complete door
+    // Safe view distance of 3.20m positions camera directly in corridor walkway
     const safeDist = 3.20;
 
     const centerCloud: DoorCenterCloudRecord = {
@@ -270,12 +269,12 @@ for (let f = 1; f <= 5; f++) {
 
 export const getRoomCadastre = (roomCode: string): RoomCadastreRecord => {
   const clean = roomCode.toUpperCase().replace(/\s+/g, '');
-  // Matches "A-119", "A119", "0089-01-01-119", or "119"
+  // Matches "A-109", "A109", "0089-01-01-109", or "109"
   const roomDigitsMatch = clean.match(/([1-5][0-9]{2})/);
   if (roomDigitsMatch) {
     const rNum = roomDigitsMatch[1];
     const found = PPCRC_ROOMS_CADASTRE.find(r => r.roomNum3 === rNum);
     if (found) return found;
   }
-  return PPCRC_ROOMS_CADASTRE[8]; // Default to A-119
+  return PPCRC_ROOMS_CADASTRE[8]; // Default to A-109
 };
